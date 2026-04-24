@@ -27,9 +27,9 @@ If you prefer building from source, see [Build & run](#build--run) below.
 
 ### Screenshots
 
-| Liquid Glass (default) | Fallout Terminal |
-|---|---|
-| ![Liquid Glass theme](docs/screenshots/liquid-glass.png) | ![Fallout theme](docs/screenshots/fallout.png) |
+| Liquid Glass (default) | Fallout Terminal | Right-click menu |
+|---|---|---|
+| ![Liquid Glass theme](docs/screenshots/liquid-glass.png) | ![Fallout theme](docs/screenshots/fallout.png) | ![Right-click menu](docs/screenshots/menu.png) |
 
 ### Features
 
@@ -165,9 +165,9 @@ Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
 
 ### 截图
 
-| Liquid Glass（默认） | Fallout Terminal |
-|---|---|
-| ![Liquid Glass](docs/screenshots/liquid-glass.png) | ![Fallout](docs/screenshots/fallout.png) |
+| Liquid Glass（默认） | Fallout Terminal | 右键菜单 |
+|---|---|---|
+| ![Liquid Glass](docs/screenshots/liquid-glass.png) | ![Fallout](docs/screenshots/fallout.png) | ![右键菜单](docs/screenshots/menu.png) |
 
 ### 功能特性
 
