@@ -1,0 +1,184 @@
+/* ── Reset ── */
+*, *::before, *::after {
+  margin: 0; padding: 0;
+  box-sizing: border-box;
+}
+
+/* ── Root / CRT canvas ── */
+html, body {
+  width: 320px; height: 400px;
+  overflow: hidden;
+  background: #060d06;
+  color: #39ff14;
+  font-family: 'VT323', 'Andale Mono', 'Courier New', Courier, monospace;
+  font-size: 15px;
+  -webkit-user-select: none;
+  user-select: none;
+  position: relative;
+}
+
+/* Scanline overlay — subtle horizontal lines */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 3px,
+    rgba(0,0,0,0.18) 3px,
+    rgba(0,0,0,0.18) 4px
+  );
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* CRT vignette — darkens edges */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    transparent 55%,
+    rgba(0,0,0,0.65) 100%
+  );
+  pointer-events: none;
+  z-index: 51;
+}
+
+/* ── Layout ── */
+.container {
+  padding: 18px 20px 14px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Header ── */
+.header {
+  text-align: center;
+  line-height: 1.3;
+}
+
+.logo {
+  font-size: 17px;
+  letter-spacing: 1px;
+  color: #39ff14;
+  text-shadow: 0 0 10px #39ff14, 0 0 20px #39ff14;
+}
+
+.model {
+  font-size: 12px;
+  color: #1a7a00;
+  letter-spacing: 2px;
+  margin-top: 2px;
+}
+
+/* ── Divider ── */
+.divider {
+  color: #1a7a00;
+  font-size: 13px;
+  letter-spacing: -1px;
+  line-height: 1;
+  text-shadow: none;
+}
+
+/* ── Metrics block ── */
+.metrics {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.metric-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.metric-name {
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: #39ff14;
+}
+
+.metric-pct {
+  font-size: 14px;
+  color: #39ff14;
+  text-shadow: 0 0 6px #39ff14;
+  min-width: 52px;
+  text-align: right;
+}
+
+/* Segmented bar: filled = ▓ (bright), empty = ░ (dim) */
+.metric-bar {
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 1px;
+  color: #1a5500;
+}
+
+.metric-bar .lit {
+  color: #39ff14;
+  text-shadow: 0 0 5px #39ff14;
+}
+
+/* Warn colours for high load */
+.metric-bar .warn {
+  color: #ffcc00;
+  text-shadow: 0 0 5px #ffcc00;
+}
+.metric-bar .crit {
+  color: #ff3a00;
+  text-shadow: 0 0 5px #ff3a00;
+}
+
+.metric-detail {
+  font-size: 11px;
+  color: #1a7a00;
+  letter-spacing: 1px;
+}
+
+/* ── Footer ── */
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.status-label {
+  color: #1a7a00;
+  letter-spacing: 2px;
+}
+
+.status-val {
+  color: #39ff14;
+  text-shadow: 0 0 6px #39ff14;
+  letter-spacing: 1px;
+}
+
+.status-val.warn { color: #ffcc00; text-shadow: 0 0 6px #ffcc00; }
+.status-val.crit { color: #ff3a00; text-shadow: 0 0 6px #ff3a00; }
+
+.timestamp {
+  font-size: 11px;
+  color: #1a7a00;
+  letter-spacing: 1px;
+}
+
+/* ── Blink cursor ── */
+.blink {
+  animation: blink 1.1s step-end infinite;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}

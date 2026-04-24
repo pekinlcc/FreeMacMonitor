@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free Mac Monitor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+
+    <div class="header">
+      <div class="logo">&#9670; VAULT-TEC INDUSTRIES &#9670;</div>
+      <div class="model">PIP-BOY 3000 // MAC SYSTEMS</div>
+    </div>
+
+    <div class="divider">&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;</div>
+
+    <div class="metrics">
+
+      <div class="metric">
+        <div class="metric-top">
+          <span class="metric-name">CPU</span>
+          <span class="metric-pct" id="cpu-pct">--- %</span>
+        </div>
+        <div class="metric-bar" id="cpu-bar">&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;</div>
+      </div>
+
+      <div class="metric">
+        <div class="metric-top">
+          <span class="metric-name">MEMORY</span>
+          <span class="metric-pct" id="mem-pct">--- %</span>
+        </div>
+        <div class="metric-bar" id="mem-bar">&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;</div>
+      </div>
+
+      <div class="metric">
+        <div class="metric-top">
+          <span class="metric-name">GPU</span>
+          <span class="metric-pct" id="gpu-pct">--- %</span>
+        </div>
+        <div class="metric-bar" id="gpu-bar">&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;</div>
+      </div>
+
+      <div class="metric">
+        <div class="metric-top">
+          <span class="metric-name">DISK</span>
+          <span class="metric-pct" id="disk-pct">--- %</span>
+        </div>
+        <div class="metric-bar" id="disk-bar">&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;</div>
+        <div class="metric-detail" id="disk-detail">--- GB / --- GB</div>
+      </div>
+
+    </div>
+
+    <div class="divider">&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;</div>
+
+    <div class="footer">
+      <div class="status-row">
+        <span class="status-label">STATUS:</span>
+        <span class="status-val" id="status-val">INITIALIZING<span class="blink">&#9646;</span></span>
+      </div>
+      <div class="timestamp" id="timestamp">--:--:--</div>
+    </div>
+
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

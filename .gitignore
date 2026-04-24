@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# Swift Package Manager build cache
+.build/
+Packages/
+*.xcodeproj
+Package.resolved
+
+# Built .app bundle (rebuild via ./build.sh)
+Free Mac Monitor.app/
+MacDash.app/
+*.app/
+
+# Intermediate icon artifacts (checked-in product is AppIcon.icns)
+AppIcon.iconset/
+
+# Local session transcripts / internal planning docs
+.cccplayer/
+codex_review_v*.md
+GOAL.md
+PRD.md
