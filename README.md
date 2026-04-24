@@ -8,6 +8,23 @@
 
 A minimal macOS menu-bar system monitor with a retro CRT / Pip-Boy aesthetic. Pure Swift + AppKit + WebKit, zero third-party dependencies.
 
+### Download & install
+
+**Prebuilt universal binary** (Apple Silicon + Intel, ad-hoc signed — not notarised):
+
+| Method | Command |
+|---|---|
+| One-line install | `curl -fsSL https://raw.githubusercontent.com/pekinlcc/freemacmonitor/main/scripts/install.sh \| bash` |
+| Manual | [Download the latest release](https://github.com/pekinlcc/freemacmonitor/releases/latest), unzip, then drag `Free Mac Monitor.app` into `/Applications`. |
+
+Because the app is not signed with an Apple Developer certificate, Gatekeeper will refuse to open it on first launch. Choose one:
+
+- **Recommended** — run `xattr -cr "/Applications/Free Mac Monitor.app"` in Terminal to strip the quarantine flag, then open normally. The installer script already does this for you.
+- In Finder, right-click the app and choose **Open** → **Open** in the dialog.
+- Or go to **System Settings → Privacy & Security**, scroll to the blocked-app notice and click **Open Anyway**.
+
+If you prefer building from source, see [Build & run](#build--run) below.
+
 ### Features
 
 - **Menu-bar indicator** — a small `>>` icon that turns red when any metric breaches its alert threshold.
@@ -98,6 +115,23 @@ Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
 ## 中文
 
 极简的 macOS 菜单栏系统监视器，采用复古 CRT / Pip-Boy 风格。纯 Swift + AppKit + WebKit 实现，零第三方依赖。
+
+### 下载与安装
+
+**预编译通用二进制**（Apple Silicon + Intel，使用 ad-hoc 签名 —— 未经 Apple 公证）：
+
+| 方式 | 命令 |
+|---|---|
+| 一行命令安装 | `curl -fsSL https://raw.githubusercontent.com/pekinlcc/freemacmonitor/main/scripts/install.sh \| bash` |
+| 手动下载 | 前往 [Releases 页面](https://github.com/pekinlcc/freemacmonitor/releases/latest) 下载压缩包，解压后把 `Free Mac Monitor.app` 拖到 `/Applications`。 |
+
+由于应用没有使用 Apple Developer 证书签名，首次启动时 Gatekeeper 会拒绝打开。任选其一：
+
+- **推荐** —— 在 Terminal 中执行 `xattr -cr "/Applications/Free Mac Monitor.app"` 去除隔离标记，然后正常打开。一键安装脚本已经帮你做了这一步。
+- 在 Finder 中右键应用，选择 **打开** → 在弹窗中再次点击 **打开**。
+- 或前往 **系统设置 → 隐私与安全性**，滚动到被拦截的应用提示处，点击 **仍要打开**。
+
+如果你更倾向于从源码编译，请看下方 [编译与运行](#编译与运行)。
 
 ### 功能特性
 

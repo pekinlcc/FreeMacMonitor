@@ -55,11 +55,14 @@
         </p>
 
         <div class="cta-row">
-          <a class="btn btn-primary" href="https://github.com/pekinlcc/freemacmonitor" target="_blank" rel="noopener">
-            <span data-en="VIEW ON GITHUB →" data-zh="前往 GITHUB →">VIEW ON GITHUB →</span>
+          <a class="btn btn-primary" href="https://github.com/pekinlcc/freemacmonitor/releases/latest" target="_blank" rel="noopener">
+            <span data-en="DOWNLOAD .APP ↓" data-zh="下载 .APP ↓">DOWNLOAD .APP ↓</span>
           </a>
           <a class="btn btn-ghost" href="#install">
-            <span data-en="BUILD FROM SOURCE" data-zh="从源码编译">BUILD FROM SOURCE</span>
+            <span data-en="INSTALL GUIDE" data-zh="安装指南">INSTALL GUIDE</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/pekinlcc/freemacmonitor" target="_blank" rel="noopener">
+            <span data-en="GITHUB →" data-zh="GITHUB →">GITHUB →</span>
           </a>
         </div>
 
@@ -207,8 +210,58 @@
     <div class="wrap">
       <div class="section-head">
         <span class="section-num">02</span>
-        <h2 data-en="BUILD &amp; RUN" data-zh="编译与运行">BUILD &amp; RUN</h2>
+        <h2 data-en="DOWNLOAD &amp; INSTALL" data-zh="下载与安装">DOWNLOAD &amp; INSTALL</h2>
         <span class="section-rule"></span>
+      </div>
+
+      <div class="method-grid">
+        <article class="method">
+          <div class="method-tag">A</div>
+          <h3 data-en="One-line installer" data-zh="一行命令安装">One-line installer</h3>
+          <p data-en="Downloads the latest release, verifies the SHA-256, strips the quarantine flag, installs to /Applications and launches the app."
+             data-zh="下载最新 Release，校验 SHA-256，去除隔离标记，安装到 /Applications 并启动。">
+            Downloads the latest release, verifies the SHA-256, strips the quarantine flag, installs to /Applications and launches the app.
+          </p>
+          <div class="cmd-row">
+            <code id="cmd-curl">curl -fsSL https://raw.githubusercontent.com/pekinlcc/freemacmonitor/main/scripts/install.sh | bash</code>
+            <button class="copy-btn" data-copy="#cmd-curl" aria-label="Copy">COPY</button>
+          </div>
+        </article>
+
+        <article class="method">
+          <div class="method-tag">B</div>
+          <h3 data-en="Direct download" data-zh="直接下载">Direct download</h3>
+          <p data-en="Grab the signed .zip from Releases, unzip, drag into /Applications."
+             data-zh="在 Releases 里下载 .zip，解压后拖入 /Applications。">
+            Grab the signed .zip from Releases, unzip, drag into /Applications.
+          </p>
+          <div class="cmd-row">
+            <a class="btn btn-primary dl-btn" href="https://github.com/pekinlcc/freemacmonitor/releases/latest" target="_blank" rel="noopener">
+              <span data-en="LATEST RELEASE →" data-zh="最新 RELEASE →">LATEST RELEASE →</span>
+            </a>
+          </div>
+        </article>
+
+        <article class="method">
+          <div class="method-tag">C</div>
+          <h3 data-en="Build from source" data-zh="从源码编译">Build from source</h3>
+          <p data-en="If you have Xcode 15 / Command Line Tools installed."
+             data-zh="若你已安装 Xcode 15 或 Command Line Tools。">
+            If you have Xcode 15 / Command Line Tools installed.
+          </p>
+          <div class="cmd-row">
+            <code id="cmd-build">git clone https://github.com/pekinlcc/freemacmonitor.git &amp;&amp; cd freemacmonitor &amp;&amp; ./build.sh</code>
+            <button class="copy-btn" data-copy="#cmd-build" aria-label="Copy">COPY</button>
+          </div>
+        </article>
+      </div>
+
+      <div class="notice">
+        <span class="notice-tag">&#9888; GATEKEEPER</span>
+        <p data-en="The app is ad-hoc signed, not notarised — macOS will flag it as unsigned on first launch. Easiest fix: xattr -cr &quot;/Applications/Free Mac Monitor.app&quot; (the one-line installer does this for you). Or right-click the app → Open, or System Settings → Privacy &amp; Security → Open Anyway."
+           data-zh="应用使用 ad-hoc 签名，未经 Apple 公证 —— macOS 首次启动会警告未签名。最省事：xattr -cr &quot;/Applications/Free Mac Monitor.app&quot;（一键脚本已包含此步）。也可右键应用 → 打开，或系统设置 → 隐私与安全性 → 仍要打开。">
+          The app is ad-hoc signed, not notarised — macOS will flag it as unsigned on first launch. Easiest fix: <code>xattr -cr "/Applications/Free Mac Monitor.app"</code> (the one-line installer does this for you). Or right-click the app → Open, or System Settings → Privacy &amp; Security → Open Anyway.
+        </p>
       </div>
 
       <div class="install-grid">
@@ -237,18 +290,18 @@
             <span class="terminal-title">~/freemacmonitor — zsh</span>
           </div>
           <pre class="terminal-body">
-<span class="t-comment"># <span data-en="clone and build" data-zh="克隆并编译">clone and build</span></span>
+<span class="t-comment"># <span data-en="quick install" data-zh="快速安装">quick install</span></span>
+<span class="t-prompt">$</span> <span class="t-cmd">curl -fsSL https://raw.githubusercontent.com/\
+    pekinlcc/freemacmonitor/main/scripts/install.sh | bash</span>
+<span class="t-out">» <span data-en="resolving latest release" data-zh="解析最新 release">resolving latest release</span>
+» <span data-en="downloading Free-Mac-Monitor-v1.0.0.zip" data-zh="下载 Free-Mac-Monitor-v1.0.0.zip">downloading Free-Mac-Monitor-v1.0.0.zip</span>
+» <span data-en="checksum OK" data-zh="校验通过">checksum OK</span>
+» <span data-en="installing to /Applications" data-zh="安装到 /Applications">installing to /Applications</span>
+» <span data-en="launching" data-zh="启动中">launching</span></span>
+
+<span class="t-comment"># <span data-en="or build from source" data-zh="或者从源码编译">or build from source</span></span>
 <span class="t-prompt">$</span> <span class="t-cmd">git clone https://github.com/pekinlcc/freemacmonitor.git</span>
-<span class="t-prompt">$</span> <span class="t-cmd">cd freemacmonitor</span>
-<span class="t-prompt">$</span> <span class="t-cmd">./build.sh</span>
-<span class="t-out">» swift build -c release
-» assembling Free Mac Monitor.app
-» <span data-en="done." data-zh="完成。">done.</span></span>
-
-<span class="t-prompt">$</span> <span class="t-cmd">open "Free Mac Monitor.app"</span>
-
-<span class="t-comment"># <span data-en="if Gatekeeper blocks the unsigned build" data-zh="若 Gatekeeper 拦截未签名的应用">if Gatekeeper blocks the unsigned build</span></span>
-<span class="t-prompt">$</span> <span class="t-cmd">xattr -cr "Free Mac Monitor.app"</span>
+<span class="t-prompt">$</span> <span class="t-cmd">cd freemacmonitor &amp;&amp; ./build.sh</span>
 <span class="t-prompt">$</span> <span class="t-cmd">open "Free Mac Monitor.app"</span><span class="cursor">&#9608;</span>
 </pre>
         </div>
