@@ -13,7 +13,7 @@
 }
 
 html, body {
-  width: 320px; height: 500px;
+  width: 100%; height: 100%;
   overflow: hidden;
   -webkit-user-select: none;
   user-select: none;
@@ -40,17 +40,47 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
   background: transparent;                  /* NSVisualEffectView shows through */
 }
 
+/* Liquid Glass body. The NSVisualEffectView underneath is pinned to the
+   dark vibrancy variant (darkAqua on the NSPanel), so we can layer a
+   top-lit glass gradient + crisp specular highlight + hairline border
+   without worrying about light-mode auto-flipping the backdrop. */
 .theme-liquid .container {
   padding: 16px 16px 14px;
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background: rgba(22,22,28,0.38);          /* subtle tint over vibrancy */
-  backdrop-filter: saturate(160%);
-  -webkit-backdrop-filter: saturate(160%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+  gap: 14px;
+  position: relative;
+  /* Thin dark glass wash — light enough that the wallpaper reads through
+     as real colour, heavy enough for white text to stay legible.  The
+     specular/gloss layers above do the glass-surface suggestion. */
+  background:
+    linear-gradient(180deg,
+      rgba(30,32,40,0.30) 0%,
+      rgba(20,22,28,0.36) 55%,
+      rgba(12,14,20,0.42) 100%);
+  -webkit-backdrop-filter: saturate(180%);
+  backdrop-filter:         saturate(180%);
+  box-shadow:
+    inset 0  1px 0 rgba(255,255,255,0.60),   /* crisp top specular */
+    inset 0 -1px 0 rgba(0,0,0,0.20),         /* soft bottom shadow */
+    inset 0  0 0 1px rgba(255,255,255,0.10); /* hairline inside border */
 }
+/* Upper half gloss — the curved-glass sheen that distinguishes
+   Liquid Glass from flat frosted acrylic. */
+.theme-liquid .container::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 52%;
+  background: linear-gradient(180deg,
+              rgba(255,255,255,0.13) 0%,
+              rgba(255,255,255,0.04) 55%,
+              transparent             100%);
+  pointer-events: none;
+  z-index: 0;
+}
+.theme-liquid .container > * { position: relative; z-index: 1; }
 
 .theme-liquid .l-header {
   display: flex;
@@ -72,11 +102,10 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
 }
 
 .theme-liquid .metrics {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-around;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 14px;
 }
 
 .theme-liquid .metric {
@@ -111,7 +140,10 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
 .theme-liquid .bar-pill {
   height: 6px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.18);
+  box-shadow:
+    inset 0  1px 1px rgba(0,0,0,0.22),         /* sunk track */
+    inset 0 -1px 0   rgba(255,255,255,0.06);   /* faint bottom rim */
   overflow: hidden;
 }
 .theme-liquid .bar-pill .fill {
@@ -119,6 +151,7 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
   border-radius: 999px;
   width: 0;
   transition: width 0.3s ease-out;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);  /* wet-looking top */
 }
 .theme-liquid .bar-pill .fill.cpu  { background: linear-gradient(90deg, #22c4ff, #5a7fff); }
 .theme-liquid .bar-pill .fill.mem  { background: linear-gradient(90deg, #38f8c8, #22c4ff); }
@@ -131,7 +164,10 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
 .theme-liquid .mem-stacked-pill {
   height: 8px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.18);
+  box-shadow:
+    inset 0  1px 1px rgba(0,0,0,0.22),
+    inset 0 -1px 0   rgba(255,255,255,0.06);
   overflow: hidden;
   display: flex;
 }
@@ -203,11 +239,12 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
 .theme-liquid .mem-release-toast.visible { opacity: 1; }
 
 .theme-liquid .l-footer {
+  margin-top: auto;                        /* pin to the bottom of the glass */
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.10);
   font-size: 10.5px;
 }
 .theme-liquid .l-pill {

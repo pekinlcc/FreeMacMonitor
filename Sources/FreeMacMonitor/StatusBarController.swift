@@ -233,7 +233,7 @@ class StatusBarController: NSObject {
         if let btn = statusItem.button, let btnWindow = btn.window {
             let btnScreenRect = btnWindow.convertToScreen(btn.frame)
             let pw: CGFloat = 320
-            let ph: CGFloat = 500      // tall enough for 5-row breakdown + liquid breathing room
+            let ph: CGFloat = 460      // breakdown-on needs ≈420; 460 gives a calm bottom margin
             let x = (btnScreenRect.midX - pw / 2).rounded()
             let y = (btnScreenRect.minY - ph).rounded()
             p.setContentSize(NSSize(width: pw, height: ph))
@@ -272,7 +272,7 @@ class StatusBarController: NSObject {
     private var vibrancyView: NSVisualEffectView?
 
     private func buildPanel() {
-        let frame = NSRect(x: 0, y: 0, width: 320, height: 500)
+        let frame = NSRect(x: 0, y: 0, width: 320, height: 460)
 
         let p = NSPanel(
             contentRect: frame,
@@ -287,16 +287,20 @@ class StatusBarController: NSObject {
         p.isFloatingPanel          = true
         p.hasShadow                = true
         p.isReleasedWhenClosed     = false
+        // Pin to dark vibrancy so the hudWindow material always renders its
+        // dark translucent variant — otherwise in system Light Mode it goes
+        // near-white and buries white-on-glass text.
+        p.appearance               = NSAppearance(named: .darkAqua)
 
         // NSVisualEffectView supplies the desktop-blur behind the liquid glass
         // theme.  For the fallout theme, the opaque CSS body simply covers it.
         let vibrancy = NSVisualEffectView(frame: frame)
         vibrancy.autoresizingMask = [.width, .height]
-        vibrancy.material         = .popover
+        vibrancy.material         = .hudWindow    // more translucent than .popover
         vibrancy.state            = .active
         vibrancy.blendingMode     = .behindWindow
         vibrancy.wantsLayer       = true
-        vibrancy.layer?.cornerRadius  = 14
+        vibrancy.layer?.cornerRadius  = 18        // Liquid Glass reads rounder
         vibrancy.layer?.masksToBounds = true
 
         let config = WKWebViewConfiguration()
@@ -325,7 +329,7 @@ class StatusBarController: NSObject {
         guard let v = vibrancyView else { return }
         switch theme {
         case .liquidGlass:
-            v.material     = .popover
+            v.material     = .hudWindow
             v.blendingMode = .behindWindow
             v.state        = .active
         case .fallout:
