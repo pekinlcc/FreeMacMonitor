@@ -1,6 +1,6 @@
 # Free Mac Monitor
 
-[English](#english) · [中文](#中文) · [🌐 Website](https://pekinlcc.github.io/freemacmonitor/)
+[English](#english) · [中文](#中文) · [🌐 Website](https://pekinlcc.github.io/FreeMacMonitor/)
 
 ---
 
@@ -14,8 +14,8 @@ A minimal macOS menu-bar system monitor with a retro CRT / Pip-Boy aesthetic. Pu
 
 | Method | Command |
 |---|---|
-| One-line install | `curl -fsSL https://raw.githubusercontent.com/pekinlcc/freemacmonitor/main/scripts/install.sh \| bash` |
-| Manual | [Download the latest release](https://github.com/pekinlcc/freemacmonitor/releases/latest), unzip, then drag `Free Mac Monitor.app` into `/Applications`. |
+| One-line install | `curl -fsSL https://raw.githubusercontent.com/pekinlcc/FreeMacMonitor/main/scripts/install.sh \| bash` |
+| Manual | [Download the latest release](https://github.com/pekinlcc/FreeMacMonitor/releases/latest), unzip, then drag `Free Mac Monitor.app` into `/Applications`. |
 
 Because the app is not signed with an Apple Developer certificate, Gatekeeper will refuse to open it on first launch. Choose one:
 
@@ -144,8 +144,8 @@ Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
 
 | 方式 | 命令 |
 |---|---|
-| 一行命令安装 | `curl -fsSL https://raw.githubusercontent.com/pekinlcc/freemacmonitor/main/scripts/install.sh \| bash` |
-| 手动下载 | 前往 [Releases 页面](https://github.com/pekinlcc/freemacmonitor/releases/latest) 下载压缩包，解压后把 `Free Mac Monitor.app` 拖到 `/Applications`。 |
+| 一行命令安装 | `curl -fsSL https://raw.githubusercontent.com/pekinlcc/FreeMacMonitor/main/scripts/install.sh \| bash` |
+| 手动下载 | 前往 [Releases 页面](https://github.com/pekinlcc/FreeMacMonitor/releases/latest) 下载压缩包，解压后把 `Free Mac Monitor.app` 拖到 `/Applications`。 |
 
 由于应用没有使用 Apple Developer 证书签名，首次启动时 Gatekeeper 会拒绝打开。任选其一：
 

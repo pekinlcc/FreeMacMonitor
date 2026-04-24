@@ -2,7 +2,7 @@
 #
 # Free Mac Monitor — one-shot installer
 #
-#   curl -fsSL https://raw.githubusercontent.com/pekinlcc/freemacmonitor/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/pekinlcc/FreeMacMonitor/main/scripts/install.sh | bash
 #
 # Optional: pin a specific release tag
 #   curl -fsSL ... | bash -s v1.0.0
@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-REPO="pekinlcc/freemacmonitor"
+REPO="pekinlcc/FreeMacMonitor"
 APP_NAME="Free Mac Monitor.app"
 INSTALL_DIR="${INSTALL_DIR:-/Applications}"
 
