@@ -182,3 +182,62 @@ body::after {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0; }
 }
+
+/* ── Memory breakdown (v1.1) ── */
+/* Hidden by default; swapped in when "Show Memory Breakdown" is enabled. */
+.mem-breakdown-bar {
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 1px;
+  display: none;
+}
+.mem-breakdown-bar .app  { color: #39ff14; text-shadow: 0 0 5px #39ff14; }
+.mem-breakdown-bar .wire { color: #ffd24a; text-shadow: 0 0 5px #ffd24a; }
+.mem-breakdown-bar .comp { color: #3cf0ff; text-shadow: 0 0 5px #3cf0ff; }
+.mem-breakdown-bar .cach { color: #1a7a00; }
+.mem-breakdown-bar .free { color: #1a5500; }
+
+.mem-legend {
+  margin-top: 3px;
+  font-size: 10px;
+  color: #1a7a00;
+  display: none;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+  letter-spacing: 0;
+}
+.mem-legend .item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.mem-legend .sw {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+}
+.mem-legend .sw.app  { background: #39ff14; box-shadow: 0 0 3px #39ff14; }
+.mem-legend .sw.wire { background: #ffd24a; box-shadow: 0 0 3px #ffd24a; }
+.mem-legend .sw.comp { background: #3cf0ff; box-shadow: 0 0 3px #3cf0ff; }
+.mem-legend .sw.cach { background: #1a7a00; }
+.mem-legend .sw.free { background: #1a5500; }
+
+/* State — applied on body when Swift tells JS to show the breakdown. */
+.mode-breakdown #mem-bar           { display: none; }
+.mode-breakdown .mem-breakdown-bar { display: block; }
+.mode-breakdown .mem-legend        { display: flex;  }
+
+/* Release toast — "▼ Released 2.3 GB at 19:42:05" */
+.mem-release-toast {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #39ff14;
+  text-shadow: 0 0 4px #39ff14;
+  letter-spacing: 1px;
+  min-height: 13px;
+  opacity: 0;
+  transition: opacity 0.35s ease-out;
+}
+.mem-release-toast.visible { opacity: 1; }

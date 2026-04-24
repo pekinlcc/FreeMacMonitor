@@ -2,26 +2,50 @@ import Darwin
 import Foundation
 import IOKit
 
+// Bytes-per-category memory breakdown. Categories match Activity Monitor:
+//   App      — anonymous pages (app allocations, minus purgeable)
+//   Wired    — kernel/driver-locked pages
+//   Compressed — compressor-held pages
+//   Cached   — file-backed + purgeable (reclaimable)
+//   Free     — truly free (minus speculative prefetch)
+// `pressure` is the number we treat as "used" for the status-bar % :
+//   pressure = (app + wired + compressed) / total
+// which avoids false alarms from legitimately high caches.
+struct MemoryBreakdown: Encodable {
+    let total: UInt64
+    let app: UInt64
+    let wired: UInt64
+    let compressed: UInt64
+    let cached: UInt64
+    let free: UInt64
+
+    var used: UInt64       { app + wired + compressed + cached }
+    var pressure: Double   { total > 0 ? Double(app + wired + compressed) / Double(total) * 100 : 0 }
+    var headroom: Double   { total > 0 ? Double(app + wired + compressed + cached) / Double(total) * 100 : 0 }
+}
+
 struct MetricsSnapshot: Encodable {
     let cpu: Double
-    let memory: Double
-    let gpuUsage: Double   // -1.0 = N/A
+    let memory: Double            // legacy: equals mem.pressure, kept for JS compatibility
+    let memBreakdown: MemoryBreakdown
+    let gpuUsage: Double           // -1.0 = N/A
     let diskUsed: UInt64
     let diskTotal: UInt64
     var diskPercent: Double { diskTotal > 0 ? Double(diskUsed) / Double(diskTotal) * 100 : 0 }
 
     enum CodingKeys: String, CodingKey {
-        case cpu, memory, gpuUsage, diskUsed, diskTotal, diskPercent
+        case cpu, memory, memBreakdown, gpuUsage, diskUsed, diskTotal, diskPercent
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(cpu,         forKey: .cpu)
-        try c.encode(memory,      forKey: .memory)
-        try c.encode(gpuUsage,    forKey: .gpuUsage)
-        try c.encode(diskUsed,    forKey: .diskUsed)
-        try c.encode(diskTotal,   forKey: .diskTotal)
-        try c.encode(diskPercent, forKey: .diskPercent)
+        try c.encode(cpu,          forKey: .cpu)
+        try c.encode(memory,       forKey: .memory)
+        try c.encode(memBreakdown, forKey: .memBreakdown)
+        try c.encode(gpuUsage,     forKey: .gpuUsage)
+        try c.encode(diskUsed,     forKey: .diskUsed)
+        try c.encode(diskTotal,    forKey: .diskTotal)
+        try c.encode(diskPercent,  forKey: .diskPercent)
     }
 }
 
@@ -30,12 +54,14 @@ enum SystemMetrics {
     private static var prevTicks: (user: UInt64, sys: UInt64, idle: UInt64, nice: UInt64) = (0, 0, 0, 0)
 
     static func snapshot() -> MetricsSnapshot {
-        MetricsSnapshot(
-            cpu:       cpuUsage(),
-            memory:    memoryUsage(),
-            gpuUsage:  gpuUsage(),
-            diskUsed:  diskUsed(),
-            diskTotal: diskTotal()
+        let mem = memoryBreakdown()
+        return MetricsSnapshot(
+            cpu:          cpuUsage(),
+            memory:       mem.pressure,
+            memBreakdown: mem,
+            gpuUsage:     gpuUsage(),
+            diskUsed:     diskUsed(),
+            diskTotal:    diskTotal()
         )
     }
 
@@ -72,14 +98,11 @@ enum SystemMetrics {
 
     // MARK: - Memory
 
-    private static func memoryUsage() -> Double {
-        // Total physical RAM
+    static func memoryBreakdown() -> MemoryBreakdown {
         var memSize: UInt64 = 0
         var sizeOfMemSize = MemoryLayout<UInt64>.size
         sysctlbyname("hw.memsize", &memSize, &sizeOfMemSize, nil, 0)
-        guard memSize > 0 else { return 0 }
 
-        // VM stats for used pages
         var stats = vm_statistics64()
         var count = mach_msg_type_number_t(
             MemoryLayout<vm_statistics64_data_t>.size / MemoryLayout<integer_t>.size)
@@ -89,17 +112,37 @@ enum SystemMetrics {
                 host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
             }
         }
-        guard kr == KERN_SUCCESS else { return 0 }
+        guard kr == KERN_SUCCESS, memSize > 0 else {
+            return MemoryBreakdown(total: memSize, app: 0, wired: 0, compressed: 0, cached: 0, free: 0)
+        }
 
         var pageSize: vm_size_t = 0
         host_page_size(mach_host_self(), &pageSize)
         let ps = UInt64(pageSize)
 
-        let used = (UInt64(stats.active_count)          +
-                    UInt64(stats.wire_count)             +
-                    UInt64(stats.compressor_page_count)) * ps
+        // Mirror Activity Monitor's definitions.
+        // internal_page_count = anonymous (app) pages including purgeable.
+        // external_page_count = file-backed pages (caches, mmapped files).
+        let internalBytes   = UInt64(stats.internal_page_count)      * ps
+        let externalBytes   = UInt64(stats.external_page_count)      * ps
+        let purgeableBytes  = UInt64(stats.purgeable_count)          * ps
+        let wireBytes       = UInt64(stats.wire_count)               * ps
+        let compBytes       = UInt64(stats.compressor_page_count)    * ps
+        let freeRaw         = UInt64(stats.free_count)               * ps
+        let specBytes       = UInt64(stats.speculative_count)        * ps
 
-        return Double(used) / Double(memSize) * 100
+        let app    = internalBytes &- min(internalBytes, purgeableBytes)
+        let cached = externalBytes &+ purgeableBytes
+        let free   = freeRaw &- min(freeRaw, specBytes)
+
+        return MemoryBreakdown(
+            total:      memSize,
+            app:        app,
+            wired:      wireBytes,
+            compressed: compBytes,
+            cached:     cached,
+            free:       free
+        )
     }
 
     // MARK: - GPU

@@ -1,4 +1,5 @@
 import AppKit
+import UserNotifications
 import WebKit
 
 class StatusBarController: NSObject {
@@ -14,16 +15,46 @@ class StatusBarController: NSObject {
     private let gpuAlertThreshold:  Double = 80
     private let diskAlertThreshold: Double = 85
 
+    // Auto-release: trigger when pressure ≥ 98 for `autoReleaseHoldTicks` consecutive samples.
+    // Using (App+Wired+Compressed)/Total (MemoryBreakdown.pressure) avoids false alarms from
+    // legitimately-high cache pages.
+    private let autoReleaseTriggerPct:  Double = 98
+    private let autoReleaseHoldTicks:   Int    = 3      // 3 seconds of sustained pressure
+    private let autoReleaseCooldownSec: Double = 60     // don't retrigger for 60s after a run
+
     // Live-metrics rotation (menu-toggle preference)
-    private let showLiveMetricsKey = "showLiveMetrics"
-    private let rotationSeconds    = 3   // one metric every N polling ticks
-    private var tickCount          = 0
-    private var metricIndex        = 0
-    private let pipGreen           = NSColor(srgbRed: 0.22, green: 1.0, blue: 0.08, alpha: 1.0)
+    private let showLiveMetricsKey      = "showLiveMetrics"
+    private let showMemBreakdownKey     = "showMemoryBreakdown"
+    private let autoReleaseModeKey      = "autoReleaseMode"
+    private let rotationSeconds         = 3
+    private var tickCount               = 0
+    private var metricIndex             = 0
+    private let pipGreen                = NSColor(srgbRed: 0.22, green: 1.0, blue: 0.08, alpha: 1.0)
+    private let pipAmber                = NSColor(srgbRed: 1.00, green: 0.82, blue: 0.29, alpha: 1.0)
+
+    // Auto-release / animation runtime state
+    private var pressureHighTicks       = 0
+    private var lastReleaseAt: Date?
+    private var animationFrames: [(String, NSColor)] = []
+    private var animationIndex          = 0
+    private var animationTimer:  Timer?
+    private var isReleasing             = false
+    private var lastReleaseResult: (bytes: UInt64, deltaPct: Double, time: Date)?
 
     private var showLiveMetrics: Bool {
         get { UserDefaults.standard.bool(forKey: showLiveMetricsKey) }
         set { UserDefaults.standard.set(newValue, forKey: showLiveMetricsKey) }
+    }
+    private var showMemBreakdown: Bool {
+        get { UserDefaults.standard.bool(forKey: showMemBreakdownKey) }
+        set { UserDefaults.standard.set(newValue, forKey: showMemBreakdownKey) }
+    }
+    private var autoReleaseMode: AutoReleaseMode {
+        get {
+            let raw = UserDefaults.standard.string(forKey: autoReleaseModeKey) ?? AutoReleaseMode.notify.rawValue
+            return AutoReleaseMode(rawValue: raw) ?? .notify
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: autoReleaseModeKey) }
     }
 
     private enum MetricKind { case cpu, memory, gpu, disk }
@@ -31,6 +62,7 @@ class StatusBarController: NSObject {
     override init() {
         super.init()
         setupStatusItem()
+        requestNotificationPermissionIfNeeded()
         startPolling()
     }
 
@@ -61,15 +93,40 @@ class StatusBarController: NSObject {
         if panel?.isVisible == true { closePanel() }
 
         let menu = NSMenu()
+        menu.autoenablesItems = false
 
-        let toggle = NSMenuItem(
-            title: "Show Live Metrics",
-            action: #selector(toggleLiveMetrics),
-            keyEquivalent: ""
+        let liveMetrics = NSMenuItem(title: "Show Live Metrics", action: #selector(toggleLiveMetrics), keyEquivalent: "")
+        liveMetrics.target = self
+        liveMetrics.state  = showLiveMetrics ? .on : .off
+        menu.addItem(liveMetrics)
+
+        let breakdown = NSMenuItem(title: "Show Memory Breakdown", action: #selector(toggleMemBreakdown), keyEquivalent: "")
+        breakdown.target = self
+        breakdown.state  = showMemBreakdown ? .on : .off
+        menu.addItem(breakdown)
+
+        // Auto-Release submenu
+        let autoItem = NSMenuItem(title: "Auto-Release Memory", action: nil, keyEquivalent: "")
+        let autoSub  = NSMenu(title: "Auto-Release Memory")
+        for mode in [AutoReleaseMode.notify, .autoPassword, .autoSudoers, .off] {
+            let it = NSMenuItem(title: mode.menuTitle, action: #selector(setAutoReleaseMode(_:)), keyEquivalent: "")
+            it.target = self
+            it.state  = (autoReleaseMode == mode) ? .on : .off
+            it.representedObject = mode.rawValue
+            autoSub.addItem(it)
+        }
+        autoItem.submenu = autoSub
+        menu.addItem(autoItem)
+
+        let releaseNow = NSMenuItem(
+            title: "Release Memory Now…",
+            action: #selector(releaseNow),
+            keyEquivalent: "r"
         )
-        toggle.target = self
-        toggle.state  = showLiveMetrics ? .on : .off
-        menu.addItem(toggle)
+        releaseNow.keyEquivalentModifierMask = [.command]
+        releaseNow.target = self
+        releaseNow.isEnabled = !isReleasing
+        menu.addItem(releaseNow)
 
         menu.addItem(.separator())
 
@@ -84,10 +141,25 @@ class StatusBarController: NSObject {
 
     @objc private func toggleLiveMetrics() {
         showLiveMetrics.toggle()
-        // Reset rotation so the user sees a fresh cycle starting at CPU.
-        tickCount   = 0
+        tickCount = 0
         metricIndex = 0
         renderStatusBar(SystemMetrics.snapshot())
+    }
+
+    @objc private func toggleMemBreakdown() {
+        showMemBreakdown.toggle()
+        if let snap = lastSnapshot() { pushMetricsToWebView(snap) }
+    }
+
+    @objc private func setAutoReleaseMode(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let mode = AutoReleaseMode(rawValue: raw) else { return }
+        autoReleaseMode = mode
+        pressureHighTicks = 0           // reset the hysteresis on mode change
+    }
+
+    @objc private func releaseNow() {
+        triggerRelease(manual: true)
     }
 
     @objc private func quitApp() {
@@ -95,9 +167,7 @@ class StatusBarController: NSObject {
     }
 
     private func iconTitle(alert: Bool) -> NSAttributedString {
-        let color: NSColor = alert
-            ? .systemRed
-            : NSColor(srgbRed: 0.22, green: 1.0, blue: 0.08, alpha: 1.0)
+        let color: NSColor = alert ? .systemRed : pipGreen
         return NSAttributedString(string: ">>", attributes: [
             .foregroundColor: color,
             .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .medium)
@@ -118,19 +188,19 @@ class StatusBarController: NSObject {
         if panel == nil { buildPanel() }
         guard let p = panel else { return }
 
-        // Position directly below the status bar button
         if let btn = statusItem.button, let btnWindow = btn.window {
             let btnScreenRect = btnWindow.convertToScreen(btn.frame)
             let pw: CGFloat = 320
-            let ph: CGFloat = 400
+            let ph: CGFloat = 440      // slightly taller to host the breakdown legend
             let x = (btnScreenRect.midX - pw / 2).rounded()
             let y = (btnScreenRect.minY - ph).rounded()
+            p.setContentSize(NSSize(width: pw, height: ph))
             p.setFrameOrigin(NSPoint(x: x, y: y))
         }
 
         p.makeKeyAndOrderFront(nil)
         installClickOutsideMonitor()
-        tick()  // immediate first data push when panel opens
+        tick()
     }
 
     private func closePanel() {
@@ -138,9 +208,6 @@ class StatusBarController: NSObject {
         panel?.orderOut(nil)
     }
 
-    // Global monitor fires for mouse-downs in OTHER apps/windows — clicks on our own
-    // status-bar button and inside the panel are delivered locally and never reach it,
-    // so we can safely close on any global click without re-toggle races.
     private func installClickOutsideMonitor() {
         guard clickOutsideMonitor == nil else { return }
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(
@@ -160,7 +227,7 @@ class StatusBarController: NSObject {
     // MARK: - Panel construction
 
     private func buildPanel() {
-        let frame = NSRect(x: 0, y: 0, width: 320, height: 400)
+        let frame = NSRect(x: 0, y: 0, width: 320, height: 440)
 
         let p = NSPanel(
             contentRect: frame,
@@ -176,7 +243,6 @@ class StatusBarController: NSObject {
         p.hasShadow                = true
         p.isReleasedWhenClosed     = false
 
-        // Round the corners slightly so the panel sits comfortably under the menu bar
         if let cv = p.contentView {
             cv.wantsLayer           = true
             cv.layer?.cornerRadius  = 8
@@ -197,8 +263,6 @@ class StatusBarController: NSObject {
     private func loadWebContent() {
         guard let wv = webView else { return }
 
-        // Resources live in MacDash.app/Contents/Resources/ after build.sh runs.
-        // During swift run / swift build, fall back to the source tree.
         let candidates: [URL?] = [
             Bundle.main.url(forResource: "index", withExtension: "html"),
             sourceTreeResourceURL()
@@ -210,17 +274,14 @@ class StatusBarController: NSObject {
             return
         }
 
-        // Last-resort inline fallback
         wv.loadHTMLString(
             "<html><body style='background:#0a0f0a;color:#39ff14;font-family:monospace;padding:16px'>" +
-            "<p>MacDash — resource files not found.<br>Run ./build.sh first.</p></body></html>",
+            "<p>Free Mac Monitor — resource files not found.<br>Run ./build.sh first.</p></body></html>",
             baseURL: nil
         )
     }
 
-    // Resolve Sources/MacDash/Resources/index.html relative to the binary's location
     private func sourceTreeResourceURL() -> URL? {
-        // Walk up from binary until we find Package.swift, then descend into source resources
         var dir = URL(fileURLWithPath: Bundle.main.executablePath ?? "")
         for _ in 0..<8 {
             dir = dir.deletingLastPathComponent()
@@ -232,20 +293,22 @@ class StatusBarController: NSObject {
         return nil
     }
 
-    // MARK: - Unified polling (always-on, 1 Hz)
-    // Single timer runs whether or not the panel is open so the icon reflects
-    // current alert state at all times without requiring the panel to be visible.
+    // MARK: - Polling
 
     private func startPolling() {
-        tick()  // immediate first sample
+        tick()
         pollingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.tick()
         }
         RunLoop.main.add(pollingTimer!, forMode: .common)
     }
 
+    private var cachedSnap: MetricsSnapshot?
+    private func lastSnapshot() -> MetricsSnapshot? { cachedSnap }
+
     private func tick() {
         let snap = SystemMetrics.snapshot()
+        cachedSnap = snap
 
         tickCount += 1
         if tickCount >= rotationSeconds {
@@ -253,16 +316,167 @@ class StatusBarController: NSObject {
             metricIndex &+= 1
         }
 
+        evaluateAutoRelease(snap)
+
         renderStatusBar(snap)
 
         guard let p = panel, p.isVisible else { return }
         pushMetricsToWebView(snap)
     }
 
-    // Dispatches to either the `>>` icon or rotating live-metric text.
-    // When any threshold is breached we lock rotation to just the alerting
-    // metrics so the overloaded one is always visible within ≤ rotationSeconds.
+    // MARK: - Auto-release evaluation
+
+    private func evaluateAutoRelease(_ snap: MetricsSnapshot) {
+        // No auto-trigger when the animation or a manual release is already in flight.
+        if isReleasing || animationTimer != nil { return }
+
+        // Cooldown guard
+        if let last = lastReleaseAt,
+           Date().timeIntervalSince(last) < autoReleaseCooldownSec {
+            return
+        }
+
+        let pressure = snap.memBreakdown.pressure
+        if pressure >= autoReleaseTriggerPct {
+            pressureHighTicks += 1
+        } else {
+            pressureHighTicks = 0
+            return
+        }
+        guard pressureHighTicks >= autoReleaseHoldTicks else { return }
+
+        switch autoReleaseMode {
+        case .off:
+            pressureHighTicks = 0
+        case .notify:
+            pressureHighTicks = 0
+            lastReleaseAt = Date()
+            postPressureNotification(pressure: pressure)
+        case .autoPassword, .autoSudoers:
+            pressureHighTicks = 0
+            triggerRelease(manual: false)
+        }
+    }
+
+    private func triggerRelease(manual: Bool) {
+        guard !isReleasing else { return }
+        let mode = autoReleaseMode
+
+        // For a manual "Release Memory Now…" invocation we ignore .off / .notify
+        // and always try to actually run purge — pick a sensible default.
+        let runningMode: AutoReleaseMode = {
+            if !manual { return mode }
+            switch mode {
+            case .off, .notify: return .autoPassword
+            default:            return mode
+            }
+        }()
+        guard runningMode == .autoPassword || runningMode == .autoSudoers else { return }
+
+        isReleasing   = true
+        lastReleaseAt = Date()
+        startCleanupAnimation(phase: .flushing)
+
+        MemoryReleaser.release(mode: runningMode) { [weak self] result in
+            guard let self = self else { return }
+            self.isReleasing = false
+
+            guard let snap = self.cachedSnap else {
+                self.finishCleanupAnimation(deltaPct: 0, success: result.success)
+                return
+            }
+            let delta = result.delta(total: snap.memBreakdown.total)
+            self.lastReleaseResult = (result.bytesReleased, delta, Date())
+            self.finishCleanupAnimation(deltaPct: delta, success: result.success)
+
+            if let err = result.errorMessage, !result.success, err != "cancelled" {
+                self.postErrorNotification(err, mode: runningMode)
+            }
+        }
+    }
+
+    // MARK: - Cleanup animation
+
+    private enum AnimPhase { case flushing }
+
+    private func startCleanupAnimation(phase: AnimPhase) {
+        // Frames 0–5: [FLUSH ....] → [FLUSH ████] — 6 frames × 200ms each
+        // Terminal frames are appended once the purge completes (finishCleanupAnimation).
+        animationFrames = [
+            (">> MEM \(Int(cachedSnap?.memBreakdown.pressure ?? 0))%",          .systemRed),
+            ("[FLUSH ····]", pipAmber),
+            ("[FLUSH ▓···]", pipAmber),
+            ("[FLUSH ▓▓··]", pipAmber),
+            ("[FLUSH ▓▓▓·]", pipAmber),
+            ("[FLUSH ▓▓▓▓]", pipAmber),
+        ]
+        animationIndex = 0
+        animationTimer?.invalidate()
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] t in
+            guard let self = self else { t.invalidate(); return }
+            self.advanceAnimation()
+        }
+        RunLoop.main.add(animationTimer!, forMode: .common)
+        renderCurrentAnimationFrame()
+    }
+
+    private func advanceAnimation() {
+        animationIndex += 1
+        if animationIndex >= animationFrames.count {
+            animationTimer?.invalidate()
+            animationTimer = nil
+            return
+        }
+        renderCurrentAnimationFrame()
+    }
+
+    // Called from the async release completion — appends "▼N" result frame
+    // and schedules a handoff back to normal rendering.
+    private func finishCleanupAnimation(deltaPct: Double, success: Bool) {
+        let pressure = cachedSnap?.memBreakdown.pressure ?? 0
+        let color: NSColor = success ? pipGreen : pipAmber
+        let delta = Int(deltaPct.rounded())
+        let text = success
+            ? String(format: "MEM %d%% ▼%d", Int(pressure), max(0, delta))
+            : "[FLUSH FAIL]"
+        animationFrames = [(text, color)]
+        animationIndex  = 0
+        animationTimer?.invalidate()
+
+        renderCurrentAnimationFrame()
+
+        // Hold the result frame for 900ms, then release the animation lock
+        // so the normal tick() rendering can take over.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+            self?.animationFrames = []
+            self?.animationIndex  = 0
+            self?.animationTimer  = nil
+            if let snap = self?.cachedSnap { self?.renderStatusBar(snap) }
+            // Also push the released-line to the webview for the panel toast.
+            if let self = self, let r = self.lastReleaseResult, self.panel?.isVisible == true {
+                self.pushReleaseToastToWebView(bytes: r.bytes, at: r.time)
+            }
+        }
+    }
+
+    private func renderCurrentAnimationFrame() {
+        guard animationIndex < animationFrames.count else { return }
+        let (text, color) = animationFrames[animationIndex]
+        statusItem.button?.attributedTitle = NSAttributedString(
+            string: text,
+            attributes: [
+                .foregroundColor: color,
+                .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .medium)
+            ]
+        )
+    }
+
+    // MARK: - Normal status-bar render (rotating or icon)
+
     private func renderStatusBar(_ snap: MetricsSnapshot) {
+        // If an animation is running it owns the status-bar title.
+        if animationTimer != nil || !animationFrames.isEmpty { return }
+
         let alerting = alertingMetrics(snap)
         let isAlert  = !alerting.isEmpty
 
@@ -318,15 +532,66 @@ class StatusBarController: NSObject {
         return "\(label) \(pct)%"
     }
 
+    // MARK: - WebView push
+
     private func pushMetricsToWebView(_ snap: MetricsSnapshot) {
         guard let data   = try? JSONEncoder().encode(snap),
               let jsBody = String(data: data, encoding: .utf8) else { return }
-        let js = "if(typeof window.updateMetrics==='function'){window.updateMetrics(\(jsBody));}"
+        let showBreak = showMemBreakdown ? "true" : "false"
+        let js = """
+        if(typeof window.updateMetrics==='function'){
+          window.updateMetrics(\(jsBody), { showBreakdown: \(showBreak) });
+        }
+        """
         webView?.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    private func pushReleaseToastToWebView(bytes: UInt64, at: Date) {
+        let df = DateFormatter()
+        df.dateFormat = "HH:mm:ss"
+        let mb = Double(bytes) / (1024 * 1024)
+        let msg: String
+        if mb >= 1024 { msg = String(format: "%.1f GB", mb / 1024) }
+        else          { msg = String(format: "%.0f MB", mb) }
+        let escaped = msg.replacingOccurrences(of: "'", with: "\\'")
+        let js = """
+        if(typeof window.showReleaseToast==='function'){
+          window.showReleaseToast('\(escaped)', '\(df.string(from: at))');
+        }
+        """
+        webView?.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    // MARK: - Notifications
+
+    private func requestNotificationPermissionIfNeeded() {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    private func postPressureNotification(pressure: Double) {
+        let c = UNMutableNotificationContent()
+        c.title = "Memory pressure high"
+        c.body  = String(format: "Memory at %.0f%% — open the menu to release cache.", pressure)
+        c.sound = .default
+        let req = UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil)
+        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
+    }
+
+    private func postErrorNotification(_ message: String, mode: AutoReleaseMode) {
+        let c = UNMutableNotificationContent()
+        c.title = "Memory release failed"
+        c.body  = mode == .autoSudoers
+            ? "sudoers-free mode needs a NOPASSWD rule for /usr/sbin/purge. See README."
+            : message
+        c.sound = .default
+        let req = UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil)
+        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
     }
 
     deinit {
         pollingTimer?.invalidate()
+        animationTimer?.invalidate()
         removeClickOutsideMonitor()
     }
 }

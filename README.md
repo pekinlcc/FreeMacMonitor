@@ -33,9 +33,11 @@ If you prefer building from source, see [Build & run](#build--run) below.
   CPU 20%  →  MEM 64%  →  GPU  5%  →  DSK 59%
   ```
   When a threshold is breached the rotation locks onto the offending metric and turns red, so you see the problem within one cycle.
-- **Expanding panel** — left-click to open a 320 × 400 Pip-Boy-styled dashboard with live bar charts. Click anywhere outside to collapse.
+- **Expanding panel** — left-click to open a 320 × 440 Pip-Boy-styled dashboard with live bar charts. Click anywhere outside to collapse.
+- **Memory breakdown** *(v1.1)* — toggle **Show Memory Breakdown** and the memory bar becomes a 5-colour stacked chart (App / Wired / Compressed / Cached / Free), matching Activity Monitor's categories with a legend showing GB values per category.
+- **Auto-release at high pressure** *(v1.1)* — when (App + Wired + Compressed) / Total ≥ 98 % for 3 consecutive seconds, optionally fire `/usr/sbin/purge` and show a live status-bar animation (`[FLUSH ▓▓▓▓] → MEM 82% ▼16`) with the real measured reduction. Three modes (right-click → **Auto-Release Memory**): Notify only / Auto-run with password prompt / Auto-run with a pre-set sudoers rule. `⌘R` from the menu triggers a one-shot release manually.
 - **Always-on polling** at 1 Hz — the menu-bar state stays current whether the panel is open or not.
-- **Persistent preference** — the live-metrics toggle is stored in `UserDefaults`.
+- **Persistent preferences** — all toggles are stored in `UserDefaults`.
 
 ### Requirements
 
@@ -60,9 +62,29 @@ xattr -cr "Free Mac Monitor.app" && open "Free Mac Monitor.app"
 | Item | Action |
 |---|---|
 | Show Live Metrics | Toggles the rotating readout in the menu bar. |
+| Show Memory Breakdown | Switches the MEMORY row to a 5-colour stacked chart + legend. |
+| Auto-Release Memory ▸ | Sub-menu: Notify only · Auto-run prompt password · Auto-run sudoers-free · Off. |
+| Release Memory Now… ⌘R | One-shot manual purge (prompts for password unless sudoers is set up). |
 | Quit Free Mac Monitor | Exits the app. |
 
 Left-click opens / closes the dashboard panel.
+
+### Auto-release modes
+
+`/usr/sbin/purge` is the only honest mechanism macOS offers for explicit memory release — typically it frees 0.2–1 GB of disk cache — and it requires `root`. The three Auto-Release modes trade off between friction and automation:
+
+1. **Notify only** *(default)* — On sustained 98 % pressure the app posts a macOS notification. You stay in control; no command runs automatically.
+2. **Auto-run — prompt password** — The app fires `osascript` with `do shell script "/usr/sbin/purge" with administrator privileges`, which shows the standard admin password dialog each time.
+3. **Auto-run — sudoers-free** — The app runs `sudo -n /usr/sbin/purge`. This requires a one-time sudoers rule so that no password is needed:
+
+   ```bash
+   # Run once; replace $USER with your login
+   echo "$USER ALL=(root) NOPASSWD: /usr/sbin/purge" \
+       | sudo tee /etc/sudoers.d/free-mac-monitor-purge > /dev/null
+   sudo chmod 440 /etc/sudoers.d/free-mac-monitor-purge
+   ```
+
+Cooldown between triggers is 60 seconds; the status-bar animation shows the measured drop (`▼N`). If nothing actually got released, the app honestly displays `▼0`.
 
 ### Alert thresholds
 
@@ -141,9 +163,11 @@ Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
   CPU 20%  →  MEM 64%  →  GPU  5%  →  DSK 59%
   ```
   当某项指标触发阈值时，滚动会锁定在该指标并显示为红色，一个循环内就能看到问题。
-- **展开面板** —— 左键点击可打开 320 × 400 的 Pip-Boy 风格仪表盘，内含实时柱状图。点击外部任意位置即可收起。
+- **展开面板** —— 左键点击可打开 320 × 440 的 Pip-Boy 风格仪表盘，内含实时柱状图。点击外部任意位置即可收起。
+- **内存分类展示** *（v1.1）* —— 勾选 **Show Memory Breakdown** 后，内存柱会变成 5 色 stacked 条（App / Wired / Compressed / Cached / Free），与 Activity Monitor 的分类一致，图例显示每类的 GB 数值。
+- **高压自动清理** *（v1.1）* —— 当 (App + Wired + Compressed) / 总内存 ≥ 98 % 持续 3 秒时，可选地调用 `/usr/sbin/purge` 并在菜单栏播放动画（`[FLUSH ▓▓▓▓] → MEM 82% ▼16`），`▼N` 是实测下降百分点。三种策略（右键 → **Auto-Release Memory**）：仅通知 / 自动运行（弹密码） / 自动运行（免密码 sudoers）。`⌘R` 立即手动触发一次清理。
 - **持续轮询** —— 1 Hz 的采样频率，无论面板是否展开，菜单栏状态始终保持最新。
-- **偏好持久化** —— 实时指标开关状态存储在 `UserDefaults` 中。
+- **偏好持久化** —— 所有开关状态存储在 `UserDefaults` 中。
 
 ### 系统要求
 
@@ -168,9 +192,29 @@ xattr -cr "Free Mac Monitor.app" && open "Free Mac Monitor.app"
 | 菜单项 | 功能 |
 |---|---|
 | Show Live Metrics | 切换菜单栏中的滚动读数显示。 |
+| Show Memory Breakdown | 将 MEMORY 行切换为 5 色 stacked 柱 + 图例。 |
+| Auto-Release Memory ▸ | 子菜单：仅通知 · 自动运行弹密码 · 自动运行免密码 · 关闭。 |
+| Release Memory Now… ⌘R | 立即手动跑一次 purge（未配置 sudoers 免密码则弹管理员密码）。 |
 | Quit Free Mac Monitor | 退出应用。 |
 
 左键点击可展开 / 收起仪表盘面板。
+
+### 自动清理的三种模式
+
+macOS 上唯一诚实的显式内存释放机制是 `/usr/sbin/purge`（通常释放 0.2–1 GB 的磁盘缓存），它需要 `root` 权限。三种模式在易用性和自动化程度之间做取舍：
+
+1. **仅通知**（默认）—— 98% 持续压力时只发送 macOS 原生通知，不会自动执行任何命令。
+2. **自动运行（弹密码）** —— 通过 `osascript` 用 `do shell script "/usr/sbin/purge" with administrator privileges` 触发，每次会弹出管理员密码输入框。
+3. **自动运行（免密码 sudoers）** —— 通过 `sudo -n /usr/sbin/purge` 触发。需要一次性配置 sudoers 规则：
+
+   ```bash
+   # 只需执行一次；把 $USER 替换成你的登录名
+   echo "$USER ALL=(root) NOPASSWD: /usr/sbin/purge" \
+       | sudo tee /etc/sudoers.d/free-mac-monitor-purge > /dev/null
+   sudo chmod 440 /etc/sudoers.d/free-mac-monitor-purge
+   ```
+
+触发之间有 60 秒冷却，状态栏动画里的 `▼N` 是实测下降百分点 —— 实际没释放出来就显示 `▼0`，不会造假。
 
 ### 预警阈值
 

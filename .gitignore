@@ -15,6 +15,12 @@ MacDash.app/
 # Intermediate icon artifacts (checked-in product is AppIcon.icns)
 AppIcon.iconset/
 
+# Release artifacts (published to GitHub Releases, not committed)
+dist/
+
+# Local design mockups (not served by Pages, not committed)
+docs/mockup-*.html
+
 # Local session transcripts / internal planning docs
 .cccplayer/
 codex_review_v*.md
