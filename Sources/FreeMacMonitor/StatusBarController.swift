@@ -113,6 +113,19 @@ class StatusBarController: NSObject {
         guard let button = statusItem.button else { return }
         if panel?.isVisible == true { closePanel() }
 
+        // Canonical menu-bar menu display: briefly attach the menu to the
+        // status item and trigger its default click action.  AppKit handles
+        // positioning (flush under the menu bar, flipped if it doesn't fit,
+        // correct vertical anchoring) — `popUp(positioning:at:in:)` is the
+        // wrong primitive here and was causing the menu to truncate with a
+        // scroll chevron or float detached from the menu bar.
+        let menu = buildContextMenu()
+        statusItem.menu = menu
+        button.performClick(nil)     // blocks until the menu dismisses
+        statusItem.menu = nil        // detach so left-click still opens the panel
+    }
+
+    private func buildContextMenu() -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
 
@@ -126,7 +139,6 @@ class StatusBarController: NSObject {
         breakdown.state  = showMemBreakdown ? .on : .off
         menu.addItem(breakdown)
 
-        // Theme submenu
         let themeItem = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
         let themeSub  = NSMenu(title: "Theme")
         for t in [Theme.liquidGlass, .fallout] {
@@ -139,7 +151,6 @@ class StatusBarController: NSObject {
         themeItem.submenu = themeSub
         menu.addItem(themeItem)
 
-        // Auto-Release submenu
         let autoItem = NSMenuItem(title: "Auto-Release Memory", action: nil, keyEquivalent: "")
         let autoSub  = NSMenu(title: "Auto-Release Memory")
         for mode in [AutoReleaseMode.notify, .autoPassword, .autoSudoers, .off] {
@@ -152,15 +163,15 @@ class StatusBarController: NSObject {
         autoItem.submenu = autoSub
         menu.addItem(autoItem)
 
-        let releaseNow = NSMenuItem(
+        let releaseNowItem = NSMenuItem(
             title: "Release Memory Now…",
             action: #selector(releaseNow),
             keyEquivalent: "r"
         )
-        releaseNow.keyEquivalentModifierMask = [.command]
-        releaseNow.target = self
-        releaseNow.isEnabled = !isReleasing
-        menu.addItem(releaseNow)
+        releaseNowItem.keyEquivalentModifierMask = [.command]
+        releaseNowItem.target = self
+        releaseNowItem.isEnabled = !isReleasing
+        menu.addItem(releaseNowItem)
 
         menu.addItem(.separator())
 
@@ -168,9 +179,7 @@ class StatusBarController: NSObject {
         quit.target = self
         menu.addItem(quit)
 
-        menu.popUp(positioning: nil,
-                   at: NSPoint(x: 0, y: button.frame.height + 4),
-                   in: button)
+        return menu
     }
 
     @objc private func toggleLiveMetrics() {
@@ -299,9 +308,33 @@ class StatusBarController: NSObject {
         vibrancy.material         = .hudWindow    // more translucent than .popover
         vibrancy.state            = .active
         vibrancy.blendingMode     = .behindWindow
-        vibrancy.wantsLayer       = true
-        vibrancy.layer?.cornerRadius  = 18        // Liquid Glass reads rounder
-        vibrancy.layer?.masksToBounds = true
+        // Rounded shape via an alpha mask image.  On macOS 14+ `layer.cornerRadius`
+        // alone doesn't propagate to the window's alpha channel, so the rectangular
+        // panel frame leaked through at the four corners (visible as white squares
+        // when an opaque window was behind ours).  `maskImage` participates in the
+        // compositor's alpha and also gives us a correctly-rounded shadow shape.
+        let cornerRadius: CGFloat = 18
+        let maskDim = Int(cornerRadius * 2) + 1
+        let maskImage = NSImage(
+            size: NSSize(width: maskDim, height: maskDim),
+            flipped: false
+        ) { rect in
+            NSColor.black.set()
+            NSBezierPath(
+                roundedRect: rect,
+                xRadius: cornerRadius,
+                yRadius: cornerRadius
+            ).fill()
+            return true
+        }
+        maskImage.capInsets = NSEdgeInsets(
+            top:    cornerRadius,
+            left:   cornerRadius,
+            bottom: cornerRadius,
+            right:  cornerRadius
+        )
+        maskImage.resizingMode = .stretch
+        vibrancy.maskImage = maskImage
 
         let config = WKWebViewConfiguration()
         let wv = WKWebView(frame: frame, configuration: config)
@@ -318,6 +351,10 @@ class StatusBarController: NSObject {
         vibrancyView   = vibrancy
         webView        = wv
         panel          = p
+
+        // Recompute shadow from the alpha mask above, otherwise macOS keeps
+        // the rectangular shadow it cached at window creation.
+        p.invalidateShadow()
 
         loadWebContent()
     }
