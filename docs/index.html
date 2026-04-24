@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free Mac Monitor · 自由 Mac 监视器</title>
+  <meta name="description" content="A minimal macOS menu-bar system monitor with a retro CRT / Pip-Boy aesthetic. Pure Swift, zero dependencies.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- CRT overlays -->
+  <div class="crt-scanlines" aria-hidden="true"></div>
+  <div class="crt-vignette" aria-hidden="true"></div>
+  <div class="crt-flicker" aria-hidden="true"></div>
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="wrap">
+      <div class="brand">
+        <span class="brand-diamond">&#9670;</span>
+        <span class="brand-name">VAULT-TEC</span>
+        <span class="brand-sub" data-en="// SYSTEMS" data-zh="// 系统监控">// SYSTEMS</span>
+      </div>
+      <nav class="nav">
+        <a href="#features" data-en="FEATURES" data-zh="特性">FEATURES</a>
+        <a href="#install" data-en="INSTALL" data-zh="安装">INSTALL</a>
+        <a href="#how" data-en="HOW IT WORKS" data-zh="原理">HOW IT WORKS</a>
+        <a href="https://github.com/pekinlcc/freemacmonitor" target="_blank" rel="noopener">GITHUB</a>
+        <button id="lang-toggle" class="lang-toggle" aria-label="Toggle language">
+          <span class="lang-opt lang-en is-active">EN</span>
+          <span class="lang-sep">/</span>
+          <span class="lang-opt lang-zh">中</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+
+      <div class="hero-copy">
+        <div class="kicker" data-en="// MENU-BAR UTILITY · macOS 13+" data-zh="// 菜单栏工具 · macOS 13+">// MENU-BAR UTILITY · macOS 13+</div>
+        <h1 class="title glow">
+          <span data-en="FREE MAC MONITOR" data-zh="自由 MAC 监视器">FREE MAC MONITOR</span>
+        </h1>
+        <p class="lede"
+           data-en="A minimal macOS menu-bar system monitor with a retro CRT / Pip-Boy aesthetic. Pure Swift + AppKit + WebKit — zero third-party dependencies."
+           data-zh="极简的 macOS 菜单栏系统监视器，复古 CRT / Pip-Boy 风格。纯 Swift + AppKit + WebKit 实现，零第三方依赖。">
+          A minimal macOS menu-bar system monitor with a retro CRT / Pip-Boy aesthetic. Pure Swift + AppKit + WebKit — zero third-party dependencies.
+        </p>
+
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://github.com/pekinlcc/freemacmonitor" target="_blank" rel="noopener">
+            <span data-en="VIEW ON GITHUB →" data-zh="前往 GITHUB →">VIEW ON GITHUB →</span>
+          </a>
+          <a class="btn btn-ghost" href="#install">
+            <span data-en="BUILD FROM SOURCE" data-zh="从源码编译">BUILD FROM SOURCE</span>
+          </a>
+        </div>
+
+        <ul class="stat-row">
+          <li><span class="stat-n">1 Hz</span><span class="stat-l" data-en="POLL RATE" data-zh="采样率">POLL RATE</span></li>
+          <li><span class="stat-n">0</span><span class="stat-l" data-en="DEPENDENCIES" data-zh="依赖项">DEPENDENCIES</span></li>
+          <li><span class="stat-n">320×400</span><span class="stat-l" data-en="PANEL SIZE" data-zh="面板尺寸">PANEL SIZE</span></li>
+          <li><span class="stat-n">4</span><span class="stat-l" data-en="METRICS" data-zh="指标数">METRICS</span></li>
+        </ul>
+      </div>
+
+      <!-- Live demo pip-boy unit -->
+      <div class="pipboy" role="img" aria-label="Live Pip-Boy dashboard demo">
+        <div class="pipboy-bezel">
+          <div class="pipboy-screen">
+            <div class="pp-header">
+              <div class="pp-logo">&#9670; VAULT-TEC INDUSTRIES &#9670;</div>
+              <div class="pp-model">PIP-BOY 3000 // MAC SYSTEMS</div>
+            </div>
+            <div class="pp-rule">══════════════════════════════</div>
+
+            <div class="pp-metrics">
+              <div class="pp-metric">
+                <div class="pp-row"><span class="pp-name">CPU</span><span class="pp-pct" id="d-cpu-pct">---%</span></div>
+                <div class="pp-bar" id="d-cpu-bar"></div>
+              </div>
+              <div class="pp-metric">
+                <div class="pp-row"><span class="pp-name">MEMORY</span><span class="pp-pct" id="d-mem-pct">---%</span></div>
+                <div class="pp-bar" id="d-mem-bar"></div>
+              </div>
+              <div class="pp-metric">
+                <div class="pp-row"><span class="pp-name">GPU</span><span class="pp-pct" id="d-gpu-pct">---%</span></div>
+                <div class="pp-bar" id="d-gpu-bar"></div>
+              </div>
+              <div class="pp-metric">
+                <div class="pp-row"><span class="pp-name">DISK</span><span class="pp-pct" id="d-disk-pct">---%</span></div>
+                <div class="pp-bar" id="d-disk-bar"></div>
+                <div class="pp-detail" id="d-disk-detail">--- GB / --- GB</div>
+              </div>
+            </div>
+
+            <div class="pp-rule">══════════════════════════════</div>
+            <div class="pp-footer">
+              <span class="pp-status"><span class="pp-status-l">STATUS:</span> <span id="d-status" class="pp-status-v">NOMINAL</span></span>
+              <span class="pp-time" id="d-time">--:--:--</span>
+            </div>
+          </div>
+          <div class="pipboy-chrome">
+            <span class="led led-on"></span>
+            <span class="led"></span>
+            <span class="led"></span>
+            <span class="chrome-label">A-7 MONITOR</span>
+          </div>
+        </div>
+
+        <!-- Menu bar mock -->
+        <div class="menubar-mock">
+          <div class="menubar-bg">
+            <span class="mb-left">&#61443; Finder  File  Edit  View</span>
+            <span class="mb-right">
+              <span class="mb-item" id="mb-rolling">CPU 20%</span>
+              <span class="mb-wifi">&#8981;</span>
+              <span class="mb-batt">100%</span>
+              <span class="mb-clock" id="mb-clock">12:00</span>
+            </span>
+          </div>
+          <div class="menubar-caption" data-en="↑ rolling menu-bar readout, cycles every 3 s" data-zh="↑ 菜单栏滚动读数，每 3 秒循环">↑ rolling menu-bar readout, cycles every 3 s</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="section" id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="section-num">01</span>
+        <h2 data-en="FEATURES" data-zh="功能特性">FEATURES</h2>
+        <span class="section-rule"></span>
+      </div>
+
+      <div class="feature-grid">
+
+        <article class="feature">
+          <div class="feature-icon">&#9670;</div>
+          <h3 data-en="Menu-bar indicator" data-zh="菜单栏指示器">Menu-bar indicator</h3>
+          <p data-en='A small "&gt;&gt;" icon that turns red when any metric breaches its alert threshold.'
+             data-zh="一个小小的 “&gt;&gt;” 图标，任何指标突破预警阈值时会变红。">
+            A small "&gt;&gt;" icon that turns red when any metric breaches its alert threshold.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-icon">&#9670;</div>
+          <h3 data-en="Live-metrics mode" data-zh="实时指标模式">Live-metrics mode</h3>
+          <p data-en="The icon becomes a rolling readout cycling every 3 s through CPU → MEM → GPU → DSK. When a threshold is breached, rotation locks on the offender in red."
+             data-zh="图标变为滚动读数，每 3 秒循环 CPU → MEM → GPU → DSK。某项超阈值时，滚动会锁定该项并显示红色。">
+            The icon becomes a rolling readout cycling every 3 s through CPU → MEM → GPU → DSK. When a threshold is breached, rotation locks on the offender in red.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-icon">&#9670;</div>
+          <h3 data-en="Expanding panel" data-zh="展开面板">Expanding panel</h3>
+          <p data-en="Left-click to open a 320×400 Pip-Boy-styled dashboard with live bar charts. Click outside to collapse."
+             data-zh="左键点击打开 320×400 的 Pip-Boy 风格仪表盘，带实时柱状图。点击外部即可收起。">
+            Left-click to open a 320×400 Pip-Boy-styled dashboard with live bar charts. Click outside to collapse.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-icon">&#9670;</div>
+          <h3 data-en="Always-on polling" data-zh="持续轮询">Always-on polling</h3>
+          <p data-en="1 Hz sampling keeps the menu-bar state current whether the panel is open or not."
+             data-zh="1 Hz 采样频率，无论面板是否展开，菜单栏状态始终最新。">
+            1 Hz sampling keeps the menu-bar state current whether the panel is open or not.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-icon">&#9670;</div>
+          <h3 data-en="Zero dependencies" data-zh="零依赖">Zero dependencies</h3>
+          <p data-en="Pure Swift + AppKit + WebKit. Darwin and IOKit handle all metric sampling directly."
+             data-zh="纯 Swift + AppKit + WebKit。所有指标采样直接通过 Darwin 与 IOKit 完成。">
+            Pure Swift + AppKit + WebKit. Darwin and IOKit handle all metric sampling directly.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-icon">&#9670;</div>
+          <h3 data-en="Persistent preference" data-zh="偏好持久化">Persistent preference</h3>
+          <p data-en="The live-metrics toggle is stored in UserDefaults and restored on next launch."
+             data-zh="实时指标开关状态存入 UserDefaults，下次启动自动恢复。">
+            The live-metrics toggle is stored in UserDefaults and restored on next launch.
+          </p>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Install -->
+  <section class="section alt" id="install">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="section-num">02</span>
+        <h2 data-en="BUILD &amp; RUN" data-zh="编译与运行">BUILD &amp; RUN</h2>
+        <span class="section-rule"></span>
+      </div>
+
+      <div class="install-grid">
+
+        <div class="req-panel">
+          <div class="panel-title" data-en="REQUIREMENTS" data-zh="系统要求">REQUIREMENTS</div>
+          <ul class="req-list">
+            <li><span class="req-key">OS</span><span class="req-val">macOS 13 Ventura+</span></li>
+            <li><span class="req-key">SWIFT</span><span class="req-val">5.9+</span></li>
+            <li><span class="req-key">TOOLS</span><span class="req-val">Xcode 15 / CLT</span></li>
+            <li><span class="req-key">ARCH</span><span class="req-val">Apple Silicon · Intel</span></li>
+          </ul>
+
+          <div class="panel-title" style="margin-top:18px" data-en="ALERT THRESHOLDS" data-zh="预警阈值">ALERT THRESHOLDS</div>
+          <ul class="req-list">
+            <li><span class="req-key">CPU</span><span class="req-val">80%</span></li>
+            <li><span class="req-key" data-en="MEMORY" data-zh="内存">MEMORY</span><span class="req-val">80%</span></li>
+            <li><span class="req-key">GPU</span><span class="req-val">80%</span></li>
+            <li><span class="req-key" data-en="DISK" data-zh="磁盘">DISK</span><span class="req-val">85%</span></li>
+          </ul>
+        </div>
+
+        <div class="terminal">
+          <div class="terminal-bar">
+            <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+            <span class="terminal-title">~/freemacmonitor — zsh</span>
+          </div>
+          <pre class="terminal-body">
+<span class="t-comment"># <span data-en="clone and build" data-zh="克隆并编译">clone and build</span></span>
+<span class="t-prompt">$</span> <span class="t-cmd">git clone https://github.com/pekinlcc/freemacmonitor.git</span>
+<span class="t-prompt">$</span> <span class="t-cmd">cd freemacmonitor</span>
+<span class="t-prompt">$</span> <span class="t-cmd">./build.sh</span>
+<span class="t-out">» swift build -c release
+» assembling Free Mac Monitor.app
+» <span data-en="done." data-zh="完成。">done.</span></span>
+
+<span class="t-prompt">$</span> <span class="t-cmd">open "Free Mac Monitor.app"</span>
+
+<span class="t-comment"># <span data-en="if Gatekeeper blocks the unsigned build" data-zh="若 Gatekeeper 拦截未签名的应用">if Gatekeeper blocks the unsigned build</span></span>
+<span class="t-prompt">$</span> <span class="t-cmd">xattr -cr "Free Mac Monitor.app"</span>
+<span class="t-prompt">$</span> <span class="t-cmd">open "Free Mac Monitor.app"</span><span class="cursor">&#9608;</span>
+</pre>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="section" id="how">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="section-num">03</span>
+        <h2 data-en="HOW IT WORKS" data-zh="实现原理">HOW IT WORKS</h2>
+        <span class="section-rule"></span>
+      </div>
+
+      <div class="how-grid">
+        <div class="how-item">
+          <div class="how-num">&#9654; 01</div>
+          <h3 data-en="Accessory app" data-zh="附属应用">Accessory app</h3>
+          <p data-en="Runs with LSUIElement = true. No Dock icon, no app-switcher entry — just a status item in the menu bar."
+             data-zh="以 LSUIElement = true 运行。无 Dock 图标、不在应用切换器中出现 —— 仅在菜单栏显示状态项。">
+            Runs with LSUIElement = true. No Dock icon, no app-switcher entry — just a status item in the menu bar.
+          </p>
+        </div>
+        <div class="how-item">
+          <div class="how-num">&#9654; 02</div>
+          <h3 data-en="Single 1 Hz timer" data-zh="单个 1 Hz 定时器">Single 1 Hz timer</h3>
+          <p data-en="Drives both the menu-bar rendering and the optional WebKit panel update. Simple, synchronous, predictable."
+             data-zh="同时驱动菜单栏渲染和（可选的）WebKit 面板更新。简单、同步、可预测。">
+            Drives both the menu-bar rendering and the optional WebKit panel update. Simple, synchronous, predictable.
+          </p>
+        </div>
+        <div class="how-item">
+          <div class="how-num">&#9654; 03</div>
+          <h3 data-en="Local HTML dashboard" data-zh="本地 HTML 仪表盘">Local HTML dashboard</h3>
+          <p data-en="Loaded via WKWebView.loadFileURL. Metric updates pushed in with evaluateJavaScript — no IPC, no server."
+             data-zh="通过 WKWebView.loadFileURL 加载。指标更新用 evaluateJavaScript 推送 —— 无 IPC，无服务器。">
+            Loaded via WKWebView.loadFileURL. Metric updates pushed in with evaluateJavaScript — no IPC, no server.
+          </p>
+        </div>
+        <div class="how-item">
+          <div class="how-num">&#9654; 04</div>
+          <h3 data-en="Click-outside to close" data-zh="点击外部关闭">Click-outside to close</h3>
+          <p data-en="NSEvent.addGlobalMonitorForEvents catches clicks in other apps' windows, avoiding re-toggle races with the status-bar button."
+             data-zh="NSEvent.addGlobalMonitorForEvents 捕获其他应用窗口中的点击，避免与状态栏按钮点击之间的重复切换竞态。">
+            NSEvent.addGlobalMonitorForEvents catches clicks in other apps' windows, avoiding re-toggle races with the status-bar button.
+          </p>
+        </div>
+      </div>
+
+      <div class="layout-panel">
+        <div class="panel-title" data-en="PROJECT LAYOUT" data-zh="项目结构">PROJECT LAYOUT</div>
+<pre class="layout-tree">
+Sources/FreeMacMonitor/
+├─ main.swift                <span class="t-comment"># NSApplication bootstrap</span>
+├─ AppDelegate.swift         <span class="t-comment"># wires up status bar controller</span>
+├─ StatusBarController.swift <span class="t-comment"># status item + panel + polling + alerts</span>
+├─ SystemMetrics.swift       <span class="t-comment"># Darwin + IOKit sampling</span>
+└─ Resources/
+   ├─ index.html             <span class="t-comment"># Pip-Boy dashboard markup</span>
+   ├─ app.js                 <span class="t-comment"># metric renderer</span>
+   └─ style.css              <span class="t-comment"># CRT / Pip-Boy theme</span>
+scripts/make_icon.swift      <span class="t-comment"># Core Graphics icon generator</span>
+build.sh                     <span class="t-comment"># SPM release + .app assembly</span>
+Info.plist                   <span class="t-comment"># LSUIElement, CFBundleIconFile</span>
+</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer-bar">
+    <div class="wrap footer-grid">
+      <div>
+        <div class="footer-logo">&#9670; VAULT-TEC INDUSTRIES &#9670;</div>
+        <div class="footer-sub" data-en="ROBCO TERMLINK · ESTABLISHED 2077"
+                                 data-zh="ROBCO TERMLINK · 始建于 2077 年">ROBCO TERMLINK · ESTABLISHED 2077</div>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/pekinlcc/freemacmonitor" target="_blank" rel="noopener">GITHUB</a>
+        <a href="https://github.com/pekinlcc/freemacmonitor/issues" target="_blank" rel="noopener" data-en="ISSUES" data-zh="问题反馈">ISSUES</a>
+        <a href="https://github.com/pekinlcc/freemacmonitor#readme" target="_blank" rel="noopener">README</a>
+      </div>
+      <div class="footer-copy">
+        <span data-en="> MIT licensed. Built with Swift."
+              data-zh="> MIT 协议。使用 Swift 构建。">&gt; MIT licensed. Built with Swift.</span>
+        <span class="blink">&#9608;</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

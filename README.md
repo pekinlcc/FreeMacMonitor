@@ -1,8 +1,14 @@
 # Free Mac Monitor
 
+[English](#english) · [中文](#中文) · [🌐 Website](https://pekinlcc.github.io/freemacmonitor/)
+
+---
+
+## English
+
 A minimal macOS menu-bar system monitor with a retro CRT / Pip-Boy aesthetic. Pure Swift + AppKit + WebKit, zero third-party dependencies.
 
-## Features
+### Features
 
 - **Menu-bar indicator** — a small `>>` icon that turns red when any metric breaches its alert threshold.
 - **Live-metrics mode** — right-click the icon and toggle **Show Live Metrics**. The icon becomes a rolling readout that cycles every 3 seconds through:
@@ -14,12 +20,12 @@ A minimal macOS menu-bar system monitor with a retro CRT / Pip-Boy aesthetic. Pu
 - **Always-on polling** at 1 Hz — the menu-bar state stays current whether the panel is open or not.
 - **Persistent preference** — the live-metrics toggle is stored in `UserDefaults`.
 
-## Requirements
+### Requirements
 
 - macOS 13 Ventura or later
 - Swift 5.9+ (ships with Xcode 15 / Command Line Tools)
 
-## Build & run
+### Build & run
 
 ```bash
 ./build.sh
@@ -32,7 +38,7 @@ If Gatekeeper blocks the unsigned build:
 xattr -cr "Free Mac Monitor.app" && open "Free Mac Monitor.app"
 ```
 
-## Right-click menu
+### Right-click menu
 
 | Item | Action |
 |---|---|
@@ -41,7 +47,7 @@ xattr -cr "Free Mac Monitor.app" && open "Free Mac Monitor.app"
 
 Left-click opens / closes the dashboard panel.
 
-## Alert thresholds
+### Alert thresholds
 
 Compiled-in constants in [`StatusBarController.swift`](Sources/FreeMacMonitor/StatusBarController.swift):
 
@@ -52,7 +58,7 @@ Compiled-in constants in [`StatusBarController.swift`](Sources/FreeMacMonitor/St
 | GPU  | 80% |
 | Disk | 85% |
 
-## Regenerating the app icon
+### Regenerating the app icon
 
 The icon is produced by a tiny Core Graphics script:
 
@@ -64,7 +70,7 @@ rm -rf AppIcon.iconset
 
 Output: `AppIcon.icns` at the project root, which `build.sh` copies into the bundle.
 
-## Project layout
+### Project layout
 
 ```
 Sources/FreeMacMonitor/
@@ -80,9 +86,100 @@ build.sh                    — SPM release build + .app assembly
 Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
 ```
 
-## How it works
+### How it works
 
 - The app runs with `LSUIElement = true` — no Dock icon, no app-switcher entry.
 - A single 1 Hz timer drives both the menu-bar render and the (optional) WebKit panel update.
 - The dashboard is local HTML (loaded via `WKWebView.loadFileURL`) and receives metric updates through `evaluateJavaScript` calls — simple, no IPC, no server.
 - Clicking outside the open panel is caught with `NSEvent.addGlobalMonitorForEvents`, which fires only for events in other apps' windows, avoiding re-toggle races with the status-bar button click.
+
+---
+
+## 中文
+
+极简的 macOS 菜单栏系统监视器，采用复古 CRT / Pip-Boy 风格。纯 Swift + AppKit + WebKit 实现，零第三方依赖。
+
+### 功能特性
+
+- **菜单栏指示器** —— 一个小小的 `>>` 图标，当任何指标突破预警阈值时会变红。
+- **实时指标模式** —— 右键点击图标，切换 **Show Live Metrics**。图标会变成滚动读数，每 3 秒循环显示：
+  ```
+  CPU 20%  →  MEM 64%  →  GPU  5%  →  DSK 59%
+  ```
+  当某项指标触发阈值时，滚动会锁定在该指标并显示为红色，一个循环内就能看到问题。
+- **展开面板** —— 左键点击可打开 320 × 400 的 Pip-Boy 风格仪表盘，内含实时柱状图。点击外部任意位置即可收起。
+- **持续轮询** —— 1 Hz 的采样频率，无论面板是否展开，菜单栏状态始终保持最新。
+- **偏好持久化** —— 实时指标开关状态存储在 `UserDefaults` 中。
+
+### 系统要求
+
+- macOS 13 Ventura 或更高版本
+- Swift 5.9+（随 Xcode 15 / Command Line Tools 一并提供）
+
+### 编译与运行
+
+```bash
+./build.sh
+open "Free Mac Monitor.app"
+```
+
+如果 Gatekeeper 阻止了未签名的应用：
+
+```bash
+xattr -cr "Free Mac Monitor.app" && open "Free Mac Monitor.app"
+```
+
+### 右键菜单
+
+| 菜单项 | 功能 |
+|---|---|
+| Show Live Metrics | 切换菜单栏中的滚动读数显示。 |
+| Quit Free Mac Monitor | 退出应用。 |
+
+左键点击可展开 / 收起仪表盘面板。
+
+### 预警阈值
+
+阈值定义在 [`StatusBarController.swift`](Sources/FreeMacMonitor/StatusBarController.swift) 中作为编译期常量：
+
+| 指标 | 默认值 |
+|---|---|
+| CPU  | 80% |
+| 内存 | 80% |
+| GPU  | 80% |
+| 磁盘 | 85% |
+
+### 重新生成应用图标
+
+图标由一个小型 Core Graphics 脚本生成：
+
+```bash
+swift scripts/make_icon.swift AppIcon.iconset
+iconutil -c icns AppIcon.iconset
+rm -rf AppIcon.iconset
+```
+
+输出：位于项目根目录的 `AppIcon.icns`，`build.sh` 会把它复制到应用包中。
+
+### 项目结构
+
+```
+Sources/FreeMacMonitor/
+  main.swift                — NSApplication 引导（accessory 激活策略）
+  AppDelegate.swift         — 装配状态栏控制器
+  StatusBarController.swift — 状态项、面板、轮询、滚动与阈值逻辑
+  SystemMetrics.swift       — 通过 Darwin + IOKit 采样 CPU / 内存 / GPU / 磁盘
+  Resources/
+    index.html / app.js / style.css — Pip-Boy 仪表盘 UI
+scripts/
+  make_icon.swift           — Core Graphics 图标生成脚本
+build.sh                    — SPM release 编译 + .app 组装
+Info.plist                  — LSUIElement、CFBundleIconFile、标识符
+```
+
+### 实现原理
+
+- 应用以 `LSUIElement = true` 运行 —— 无 Dock 图标，也不出现在应用切换器中。
+- 单个 1 Hz 定时器同时驱动菜单栏渲染和（可选的）WebKit 面板更新。
+- 仪表盘是本地 HTML（通过 `WKWebView.loadFileURL` 加载），指标更新通过 `evaluateJavaScript` 调用发送 —— 简单直接，不需要 IPC，也不需要服务器。
+- 通过 `NSEvent.addGlobalMonitorForEvents` 捕获面板外的点击事件，它只会在其他应用的窗口中触发，避免了与状态栏按钮点击之间的重复切换竞态。
