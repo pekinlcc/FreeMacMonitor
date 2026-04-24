@@ -1,24 +1,245 @@
-/* ── Reset ── */
+/* ═══════════════════════════════════════════════════════════════════
+   Free Mac Monitor — panel stylesheet
+   Two themes toggled via body class:
+     .theme-liquid   — translucent glass, SF Pro, pill bars, rounded
+     .theme-fallout  — VT323 CRT phosphor green, ASCII bars, scanlines
+   Body class `show-breakdown` swaps the MEMORY single bar for the
+   stacked 5-color bar + 5-row legend.
+   ═══════════════════════════════════════════════════════════════════ */
+
 *, *::before, *::after {
   margin: 0; padding: 0;
   box-sizing: border-box;
 }
 
-/* ── Root / CRT canvas ── */
 html, body {
-  width: 320px; height: 400px;
+  width: 320px; height: 500px;
   overflow: hidden;
-  background: #060d06;
-  color: #39ff14;
-  font-family: 'VT323', 'Andale Mono', 'Courier New', Courier, monospace;
-  font-size: 15px;
   -webkit-user-select: none;
   user-select: none;
   position: relative;
 }
 
-/* Scanline overlay — subtle horizontal lines */
-body::before {
+/* Default theme visibility rules */
+.theme-liquid  .only-fallout { display: none !important; }
+.theme-fallout .only-liquid  { display: none !important; }
+
+/* Breakdown visibility — only show rows / stacked when body has it */
+body:not(.show-breakdown) .only-breakdown    { display: none !important; }
+body.show-breakdown       .only-no-breakdown { display: none !important; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   LIQUID GLASS theme
+   ═══════════════════════════════════════════════════════════════════ */
+
+.theme-liquid {
+  color: rgba(255,255,255,0.95);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+               "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  background: transparent;                  /* NSVisualEffectView shows through */
+}
+
+.theme-liquid .container {
+  padding: 16px 16px 14px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(22,22,28,0.38);          /* subtle tint over vibrancy */
+  backdrop-filter: saturate(160%);
+  -webkit-backdrop-filter: saturate(160%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+.theme-liquid .l-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 2px;
+}
+.theme-liquid .l-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.58);
+}
+.theme-liquid .l-time {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.5);
+}
+
+.theme-liquid .metrics {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 4px;
+}
+
+.theme-liquid .metric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.theme-liquid .metric-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.theme-liquid .metric-name {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.55);
+}
+
+.theme-liquid .metric-pct {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: rgba(255,255,255,0.98);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.theme-liquid .bar-pill {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.1);
+  overflow: hidden;
+}
+.theme-liquid .bar-pill .fill {
+  height: 100%;
+  border-radius: 999px;
+  width: 0;
+  transition: width 0.3s ease-out;
+}
+.theme-liquid .bar-pill .fill.cpu  { background: linear-gradient(90deg, #22c4ff, #5a7fff); }
+.theme-liquid .bar-pill .fill.mem  { background: linear-gradient(90deg, #38f8c8, #22c4ff); }
+.theme-liquid .bar-pill .fill.gpu  { background: linear-gradient(90deg, #c078ff, #ff79d6); }
+.theme-liquid .bar-pill .fill.disk { background: linear-gradient(90deg, #ffb37a, #ff7a9b); }
+.theme-liquid .bar-pill .fill.warn { background: linear-gradient(90deg, #ffb347, #ff7a00); }
+.theme-liquid .bar-pill .fill.crit { background: linear-gradient(90deg, #ff6666, #ff3030); }
+
+/* Memory breakdown — stacked pill + 5 rows */
+.theme-liquid .mem-stacked-pill {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+  display: flex;
+}
+.theme-liquid .mem-stacked-pill span {
+  display: block;
+  height: 100%;
+  width: 0;
+  transition: width 0.3s ease-out;
+}
+.theme-liquid .mem-stacked-pill .app  { background: #35ffb0; }
+.theme-liquid .mem-stacked-pill .wire { background: #ffd24a; }
+.theme-liquid .mem-stacked-pill .comp { background: #58d7ff; }
+.theme-liquid .mem-stacked-pill .cach { background: rgba(255,255,255,0.36); }
+.theme-liquid .mem-stacked-pill .free { background: rgba(255,255,255,0.12); }
+
+.theme-liquid .mem-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 2px;
+}
+.theme-liquid .mem-row {
+  display: grid;
+  grid-template-columns: 11px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 11.5px;
+}
+.theme-liquid .mem-row .sw {
+  width: 10px; height: 10px;
+  border-radius: 3px;
+}
+.theme-liquid .mem-row .sw.app  { background: #35ffb0; box-shadow: 0 0 6px rgba(53,255,176,0.55); }
+.theme-liquid .mem-row .sw.wire { background: #ffd24a; box-shadow: 0 0 6px rgba(255,210,74,0.55); }
+.theme-liquid .mem-row .sw.comp { background: #58d7ff; box-shadow: 0 0 6px rgba(88,215,255,0.55); }
+.theme-liquid .mem-row .sw.cach { background: rgba(255,255,255,0.5); }
+.theme-liquid .mem-row .sw.free { background: rgba(255,255,255,0.2); }
+.theme-liquid .mem-row .nm {
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.06em;
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+.theme-liquid .mem-row .vl {
+  color: rgba(255,255,255,0.92);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.theme-liquid .metric-detail {
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.02em;
+  margin-top: -2px;
+}
+
+.theme-liquid .mem-release-toast {
+  font-size: 10.5px;
+  color: #35ffb0;
+  letter-spacing: 0.03em;
+  font-weight: 500;
+  min-height: 12px;
+  opacity: 0;
+  transition: opacity 0.35s ease-out;
+  margin-top: 2px;
+}
+.theme-liquid .mem-release-toast.visible { opacity: 1; }
+
+.theme-liquid .l-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  font-size: 10.5px;
+}
+.theme-liquid .l-pill {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(53,255,176,0.22);
+  color: #35ffb0;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+.theme-liquid .l-pill.warn { background: rgba(255,179,71,0.22); color: #ffb347; }
+.theme-liquid .l-pill.crit { background: rgba(255,90,90,0.25); color: #ff6a6a; }
+.theme-liquid .l-muted {
+  color: rgba(255,255,255,0.42);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FALLOUT theme — CRT phosphor terminal
+   ═══════════════════════════════════════════════════════════════════ */
+
+.theme-fallout {
+  background: #060d06;                /* opaque → covers the NSVisualEffectView */
+  color: #39ff14;
+  font-family: 'VT323', 'Andale Mono', 'Courier New', Courier, monospace;
+  font-size: 15px;
+}
+
+/* Scanline overlay */
+.theme-fallout::before {
   content: '';
   position: fixed; inset: 0;
   background: repeating-linear-gradient(
@@ -31,9 +252,8 @@ body::before {
   pointer-events: none;
   z-index: 50;
 }
-
-/* CRT vignette — darkens edges */
-body::after {
+/* CRT vignette */
+.theme-fallout::after {
   content: '';
   position: fixed; inset: 0;
   background: radial-gradient(
@@ -45,8 +265,7 @@ body::after {
   z-index: 51;
 }
 
-/* ── Layout ── */
-.container {
+.theme-fallout .container {
   padding: 18px 20px 14px;
   height: 100%;
   display: flex;
@@ -54,62 +273,55 @@ body::after {
   gap: 10px;
 }
 
-/* ── Header ── */
-.header {
+.theme-fallout .f-header {
   text-align: center;
   line-height: 1.3;
 }
-
-.logo {
+.theme-fallout .f-logo {
   font-size: 17px;
   letter-spacing: 1px;
   color: #39ff14;
   text-shadow: 0 0 10px #39ff14, 0 0 20px #39ff14;
 }
-
-.model {
+.theme-fallout .f-model {
   font-size: 12px;
   color: #1a7a00;
   letter-spacing: 2px;
   margin-top: 2px;
 }
 
-/* ── Divider ── */
-.divider {
+.theme-fallout .divider {
   color: #1a7a00;
   font-size: 13px;
   letter-spacing: -1px;
   line-height: 1;
-  text-shadow: none;
+  text-align: center;
 }
 
-/* ── Metrics block ── */
-.metrics {
+.theme-fallout .metrics {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-around;
 }
 
-.metric {
+.theme-fallout .metric {
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.metric-top {
+.theme-fallout .metric-top {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
 }
-
-.metric-name {
+.theme-fallout .metric-name {
   font-size: 13px;
   letter-spacing: 3px;
   color: #39ff14;
 }
-
-.metric-pct {
+.theme-fallout .metric-pct {
   font-size: 14px;
   color: #39ff14;
   text-shadow: 0 0 6px #39ff14;
@@ -117,121 +329,70 @@ body::after {
   text-align: right;
 }
 
-/* Segmented bar: filled = ▓ (bright), empty = ░ (dim) */
-.metric-bar {
+.theme-fallout .bar-ascii {
   font-size: 14px;
   line-height: 1;
   letter-spacing: 1px;
   color: #1a5500;
 }
+.theme-fallout .bar-ascii .lit  { color: #39ff14; text-shadow: 0 0 5px #39ff14; }
+.theme-fallout .bar-ascii .warn { color: #ffcc00; text-shadow: 0 0 5px #ffcc00; }
+.theme-fallout .bar-ascii .crit { color: #ff3a00; text-shadow: 0 0 5px #ff3a00; }
 
-.metric-bar .lit {
-  color: #39ff14;
-  text-shadow: 0 0 5px #39ff14;
-}
-
-/* Warn colours for high load */
-.metric-bar .warn {
-  color: #ffcc00;
-  text-shadow: 0 0 5px #ffcc00;
-}
-.metric-bar .crit {
-  color: #ff3a00;
-  text-shadow: 0 0 5px #ff3a00;
-}
-
-.metric-detail {
-  font-size: 11px;
-  color: #1a7a00;
-  letter-spacing: 1px;
-}
-
-/* ── Footer ── */
-.footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-}
-
-.status-label {
-  color: #1a7a00;
-  letter-spacing: 2px;
-}
-
-.status-val {
-  color: #39ff14;
-  text-shadow: 0 0 6px #39ff14;
-  letter-spacing: 1px;
-}
-
-.status-val.warn { color: #ffcc00; text-shadow: 0 0 6px #ffcc00; }
-.status-val.crit { color: #ff3a00; text-shadow: 0 0 6px #ff3a00; }
-
-.timestamp {
-  font-size: 11px;
-  color: #1a7a00;
-  letter-spacing: 1px;
-}
-
-/* ── Blink cursor ── */
-.blink {
-  animation: blink 1.1s step-end infinite;
-}
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
-}
-
-/* ── Memory breakdown (v1.1) ── */
-/* Hidden by default; swapped in when "Show Memory Breakdown" is enabled. */
-.mem-breakdown-bar {
+/* Memory stacked (ASCII) */
+.theme-fallout .mem-stacked-ascii {
   font-size: 14px;
   line-height: 1;
   letter-spacing: 1px;
-  display: none;
 }
-.mem-breakdown-bar .app  { color: #39ff14; text-shadow: 0 0 5px #39ff14; }
-.mem-breakdown-bar .wire { color: #ffd24a; text-shadow: 0 0 5px #ffd24a; }
-.mem-breakdown-bar .comp { color: #3cf0ff; text-shadow: 0 0 5px #3cf0ff; }
-.mem-breakdown-bar .cach { color: #1a7a00; }
-.mem-breakdown-bar .free { color: #1a5500; }
+.theme-fallout .mem-stacked-ascii .app  { color: #39ff14; text-shadow: 0 0 5px #39ff14; }
+.theme-fallout .mem-stacked-ascii .wire { color: #ffd24a; text-shadow: 0 0 5px #ffd24a; }
+.theme-fallout .mem-stacked-ascii .comp { color: #3cf0ff; text-shadow: 0 0 5px #3cf0ff; }
+.theme-fallout .mem-stacked-ascii .cach { color: #1a7a00; }
+.theme-fallout .mem-stacked-ascii .free { color: #1a5500; }
 
-.mem-legend {
-  margin-top: 3px;
-  font-size: 10px;
-  color: #1a7a00;
-  display: none;
-  flex-wrap: wrap;
-  gap: 3px 8px;
-  letter-spacing: 0;
-}
-.mem-legend .item {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  white-space: nowrap;
-}
-.mem-legend .sw {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 1px;
-}
-.mem-legend .sw.app  { background: #39ff14; box-shadow: 0 0 3px #39ff14; }
-.mem-legend .sw.wire { background: #ffd24a; box-shadow: 0 0 3px #ffd24a; }
-.mem-legend .sw.comp { background: #3cf0ff; box-shadow: 0 0 3px #3cf0ff; }
-.mem-legend .sw.cach { background: #1a7a00; }
-.mem-legend .sw.free { background: #1a5500; }
-
-/* State — applied on body when Swift tells JS to show the breakdown. */
-.mode-breakdown #mem-bar           { display: none; }
-.mode-breakdown .mem-breakdown-bar { display: block; }
-.mode-breakdown .mem-legend        { display: flex;  }
-
-/* Release toast — "▼ Released 2.3 GB at 19:42:05" */
-.mem-release-toast {
+/* Memory 5-row legend grid */
+.theme-fallout .mem-rows {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 2px 10px;
   margin-top: 4px;
+  font-size: 13px;
+}
+.theme-fallout .mem-row {
+  display: contents;       /* each row contributes 3 cells to the outer grid */
+}
+.theme-fallout .mem-row .sw {
+  width: 8px; height: 8px;
+  align-self: center;
+  margin-top: 1px;
+}
+.theme-fallout .mem-row .sw.app  { background: #39ff14; box-shadow: 0 0 4px #39ff14; }
+.theme-fallout .mem-row .sw.wire { background: #ffd24a; box-shadow: 0 0 4px #ffd24a; }
+.theme-fallout .mem-row .sw.comp { background: #3cf0ff; box-shadow: 0 0 4px #3cf0ff; }
+.theme-fallout .mem-row .sw.cach { background: #1a7a00; }
+.theme-fallout .mem-row .sw.free { background: #1a5500; }
+.theme-fallout .mem-row .nm {
+  color: #39ff14;
+  letter-spacing: 2px;
+  font-size: 12px;
+}
+.theme-fallout .mem-row .vl {
+  color: #39ff14;
+  text-align: right;
+  text-shadow: 0 0 4px #39ff14;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+.theme-fallout .metric-detail {
+  font-size: 11px;
+  color: #1a7a00;
+  letter-spacing: 1px;
+}
+
+.theme-fallout .mem-release-toast {
   font-size: 11px;
   color: #39ff14;
   text-shadow: 0 0 4px #39ff14;
@@ -240,4 +401,36 @@ body::after {
   opacity: 0;
   transition: opacity 0.35s ease-out;
 }
-.mem-release-toast.visible { opacity: 1; }
+.theme-fallout .mem-release-toast.visible { opacity: 1; }
+
+/* Fallout footer */
+.theme-fallout .f-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+.theme-fallout .f-footer .status-label {
+  color: #1a7a00;
+  letter-spacing: 2px;
+}
+.theme-fallout .f-footer .status-val {
+  color: #39ff14;
+  text-shadow: 0 0 6px #39ff14;
+  letter-spacing: 1px;
+}
+.theme-fallout .f-footer .status-val.warn { color: #ffcc00; text-shadow: 0 0 6px #ffcc00; }
+.theme-fallout .f-footer .status-val.crit { color: #ff3a00; text-shadow: 0 0 6px #ff3a00; }
+.theme-fallout .f-footer .timestamp {
+  font-size: 11px;
+  color: #1a7a00;
+  letter-spacing: 1px;
+}
+
+.theme-fallout .blink {
+  animation: blink 1.1s step-end infinite;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}

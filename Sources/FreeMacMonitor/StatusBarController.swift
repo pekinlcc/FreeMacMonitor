@@ -26,6 +26,7 @@ class StatusBarController: NSObject {
     private let showLiveMetricsKey      = "showLiveMetrics"
     private let showMemBreakdownKey     = "showMemoryBreakdown"
     private let autoReleaseModeKey      = "autoReleaseMode"
+    private let themeKey                = "theme"
     private let rotationSeconds         = 3
     private var tickCount               = 0
     private var metricIndex             = 0
@@ -55,6 +56,26 @@ class StatusBarController: NSObject {
             return AutoReleaseMode(rawValue: raw) ?? .notify
         }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: autoReleaseModeKey) }
+    }
+
+    enum Theme: String {
+        case liquidGlass = "liquid-glass"
+        case fallout     = "fallout"
+
+        var menuTitle: String {
+            switch self {
+            case .liquidGlass: return "Liquid Glass"
+            case .fallout:     return "Fallout Terminal"
+            }
+        }
+    }
+
+    private var theme: Theme {
+        get {
+            let raw = UserDefaults.standard.string(forKey: themeKey) ?? Theme.liquidGlass.rawValue
+            return Theme(rawValue: raw) ?? .liquidGlass
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: themeKey) }
     }
 
     private enum MetricKind { case cpu, memory, gpu, disk }
@@ -104,6 +125,19 @@ class StatusBarController: NSObject {
         breakdown.target = self
         breakdown.state  = showMemBreakdown ? .on : .off
         menu.addItem(breakdown)
+
+        // Theme submenu
+        let themeItem = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
+        let themeSub  = NSMenu(title: "Theme")
+        for t in [Theme.liquidGlass, .fallout] {
+            let it = NSMenuItem(title: t.menuTitle, action: #selector(setTheme(_:)), keyEquivalent: "")
+            it.target = self
+            it.state  = (theme == t) ? .on : .off
+            it.representedObject = t.rawValue
+            themeSub.addItem(it)
+        }
+        themeItem.submenu = themeSub
+        menu.addItem(themeItem)
 
         // Auto-Release submenu
         let autoItem = NSMenuItem(title: "Auto-Release Memory", action: nil, keyEquivalent: "")
@@ -158,6 +192,14 @@ class StatusBarController: NSObject {
         pressureHighTicks = 0           // reset the hysteresis on mode change
     }
 
+    @objc private func setTheme(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let t   = Theme(rawValue: raw) else { return }
+        theme = t
+        applyPanelChromeForTheme()
+        if let snap = cachedSnap { pushMetricsToWebView(snap) }
+    }
+
     @objc private func releaseNow() {
         triggerRelease(manual: true)
     }
@@ -191,13 +233,14 @@ class StatusBarController: NSObject {
         if let btn = statusItem.button, let btnWindow = btn.window {
             let btnScreenRect = btnWindow.convertToScreen(btn.frame)
             let pw: CGFloat = 320
-            let ph: CGFloat = 440      // slightly taller to host the breakdown legend
+            let ph: CGFloat = 500      // tall enough for 5-row breakdown + liquid breathing room
             let x = (btnScreenRect.midX - pw / 2).rounded()
             let y = (btnScreenRect.minY - ph).rounded()
             p.setContentSize(NSSize(width: pw, height: ph))
             p.setFrameOrigin(NSPoint(x: x, y: y))
         }
 
+        applyPanelChromeForTheme()
         p.makeKeyAndOrderFront(nil)
         installClickOutsideMonitor()
         tick()
@@ -226,8 +269,10 @@ class StatusBarController: NSObject {
 
     // MARK: - Panel construction
 
+    private var vibrancyView: NSVisualEffectView?
+
     private func buildPanel() {
-        let frame = NSRect(x: 0, y: 0, width: 320, height: 440)
+        let frame = NSRect(x: 0, y: 0, width: 320, height: 500)
 
         let p = NSPanel(
             contentRect: frame,
@@ -235,29 +280,60 @@ class StatusBarController: NSObject {
             backing:     .buffered,
             defer:       false
         )
-        p.isOpaque                 = true
-        p.backgroundColor          = NSColor(srgbRed: 0.04, green: 0.06, blue: 0.04, alpha: 1)
+        p.isOpaque                 = false
+        p.backgroundColor          = .clear
         p.level                    = .statusBar
         p.collectionBehavior       = [.canJoinAllSpaces, .transient]
         p.isFloatingPanel          = true
         p.hasShadow                = true
         p.isReleasedWhenClosed     = false
 
-        if let cv = p.contentView {
-            cv.wantsLayer           = true
-            cv.layer?.cornerRadius  = 8
-            cv.layer?.masksToBounds = true
-        }
+        // NSVisualEffectView supplies the desktop-blur behind the liquid glass
+        // theme.  For the fallout theme, the opaque CSS body simply covers it.
+        let vibrancy = NSVisualEffectView(frame: frame)
+        vibrancy.autoresizingMask = [.width, .height]
+        vibrancy.material         = .popover
+        vibrancy.state            = .active
+        vibrancy.blendingMode     = .behindWindow
+        vibrancy.wantsLayer       = true
+        vibrancy.layer?.cornerRadius  = 14
+        vibrancy.layer?.masksToBounds = true
 
         let config = WKWebViewConfiguration()
         let wv = WKWebView(frame: frame, configuration: config)
         wv.autoresizingMask = [.width, .height]
+        // Make the web view transparent so the vibrancy shows through when
+        // the CSS body is translucent.  `drawsBackground` is a long-standing
+        // private key on WKWebView and still the canonical way to do this.
+        wv.setValue(false, forKey: "drawsBackground")
+        wv.wantsLayer = true
+        wv.layer?.backgroundColor = NSColor.clear.cgColor
 
-        p.contentView?.addSubview(wv)
-        webView = wv
-        panel   = p
+        vibrancy.addSubview(wv)
+        p.contentView  = vibrancy
+        vibrancyView   = vibrancy
+        webView        = wv
+        panel          = p
 
         loadWebContent()
+    }
+
+    // Called when the panel opens or the user switches themes — tweaks the
+    // NSVisualEffectView material so fallout doesn't waste cycles blurring
+    // pixels it'll cover up anyway.
+    private func applyPanelChromeForTheme() {
+        guard let v = vibrancyView else { return }
+        switch theme {
+        case .liquidGlass:
+            v.material     = .popover
+            v.blendingMode = .behindWindow
+            v.state        = .active
+        case .fallout:
+            // Still active so corner clipping works, but a cheaper material.
+            v.material     = .contentBackground
+            v.blendingMode = .withinWindow
+            v.state        = .inactive
+        }
     }
 
     private func loadWebContent() {
@@ -538,9 +614,10 @@ class StatusBarController: NSObject {
         guard let data   = try? JSONEncoder().encode(snap),
               let jsBody = String(data: data, encoding: .utf8) else { return }
         let showBreak = showMemBreakdown ? "true" : "false"
+        let themeStr  = theme.rawValue
         let js = """
         if(typeof window.updateMetrics==='function'){
-          window.updateMetrics(\(jsBody), { showBreakdown: \(showBreak) });
+          window.updateMetrics(\(jsBody), { showBreakdown: \(showBreak), theme: '\(themeStr)' });
         }
         """
         webView?.evaluateJavaScript(js, completionHandler: nil)
