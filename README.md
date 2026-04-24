@@ -35,7 +35,7 @@ If you prefer building from source, see [Build & run](#build--run) below.
 <p align="center"><em>Liquid Glass (default) · Fallout Terminal</em></p>
 
 <p align="center">
-  <img src="docs/screenshots/menu.png" width="320" alt="Right-click menu">
+  <img src="docs/screenshots/menu.png" width="520" alt="Right-click menu">
 </p>
 <p align="center"><em>Right-click menu</em></p>
 
@@ -181,7 +181,7 @@ Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
 <p align="center"><em>Liquid Glass（默认） · Fallout Terminal</em></p>
 
 <p align="center">
-  <img src="docs/screenshots/menu.png" width="320" alt="右键菜单">
+  <img src="docs/screenshots/menu.png" width="520" alt="右键菜单">
 </p>
 <p align="center"><em>右键菜单</em></p>
 

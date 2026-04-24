@@ -678,9 +678,15 @@ a:hover { text-shadow: var(--glow-md); }
 /* ── Showcase (real screenshots) ─────────────────────────── */
 .showcase-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: 1fr 1fr;      /* two panels side-by-side */
   gap: 32px;
   align-items: start;
+}
+.shot-wide {
+  grid-column: 1 / -1;                 /* menu gets its own full-width row */
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
 }
 .shot {
   margin: 0;
@@ -720,8 +726,8 @@ a:hover { text-shadow: var(--glow-md); }
   height: auto;
   border-radius: 4px;
 }
-.shot-tall img { max-height: 480px; object-fit: contain; object-position: top center; background: transparent; }
-.shot-wide img { max-height: 260px; object-fit: contain; object-position: top center; background: transparent; }
+.shot-tall img { max-height: 520px; object-fit: contain; object-position: top center; background: transparent; }
+.shot-wide img { max-height: 320px; object-fit: contain; object-position: top center; background: transparent; }
 .shot figcaption {
   display: flex;
   flex-direction: column;
@@ -749,6 +755,7 @@ a:hover { text-shadow: var(--glow-md); }
   .nav a:not(.lang-toggle) { display: none; }
   .nav a[href*="github"] { display: inline; }
   .stat-row { grid-template-columns: repeat(2, 1fr); }
+  .showcase-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 520px) {
