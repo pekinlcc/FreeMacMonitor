@@ -25,19 +25,26 @@ Because the app is not signed with an Apple Developer certificate, Gatekeeper wi
 
 If you prefer building from source, see [Build & run](#build--run) below.
 
+### Screenshots
+
+| Liquid Glass (default) | Fallout Terminal |
+|---|---|
+| ![Liquid Glass theme](docs/screenshots/liquid-glass.png) | ![Fallout theme](docs/screenshots/fallout.png) |
+
 ### Features
 
+- **Two themes** *(v1.2)* — a Liquid Glass look (translucent `NSVisualEffectView`-backed popover, SF Pro typography, gradient pill bars) by default, and a Fallout Terminal look (VT323 CRT phosphor green, ASCII bars, scanlines). Switch via right-click → **Theme ▸**; both layouts share the same DOM and state.
 - **Menu-bar indicator** — a small `>>` icon that turns red when any metric breaches its alert threshold.
-- **Live-metrics mode** — right-click the icon and toggle **Show Live Metrics**. The icon becomes a rolling readout that cycles every 3 seconds through:
+- **Live-metrics mode** *(v1.0)* — right-click the icon and toggle **Show Live Metrics**. The icon becomes a rolling readout that cycles every 3 seconds through:
   ```
   CPU 20%  →  MEM 64%  →  GPU  5%  →  DSK 59%
   ```
   When a threshold is breached the rotation locks onto the offending metric and turns red, so you see the problem within one cycle.
-- **Expanding panel** — left-click to open a 320 × 440 Pip-Boy-styled dashboard with live bar charts. Click anywhere outside to collapse.
-- **Memory breakdown** *(v1.1)* — toggle **Show Memory Breakdown** and the memory bar becomes a 5-colour stacked chart (App / Wired / Compressed / Cached / Free), matching Activity Monitor's categories with a legend showing GB values per category.
+- **Expanding panel** — left-click to open a 320 × 460 dashboard with live bar charts. Click anywhere outside to collapse.
+- **Memory breakdown** *(v1.1)* — toggle **Show Memory Breakdown** and the memory bar becomes a 5-colour stacked chart (App / Wired / Compressed / Cached / Free), matching Activity Monitor's categories. Legend renders as a 5-row grid with GB values per category, never wraps.
 - **Auto-release at high pressure** *(v1.1)* — when (App + Wired + Compressed) / Total ≥ 98 % for 3 consecutive seconds, optionally fire `/usr/sbin/purge` and show a live status-bar animation (`[FLUSH ▓▓▓▓] → MEM 82% ▼16`) with the real measured reduction. Three modes (right-click → **Auto-Release Memory**): Notify only / Auto-run with password prompt / Auto-run with a pre-set sudoers rule. `⌘R` from the menu triggers a one-shot release manually.
 - **Always-on polling** at 1 Hz — the menu-bar state stays current whether the panel is open or not.
-- **Persistent preferences** — all toggles are stored in `UserDefaults`.
+- **Persistent preferences** — theme, Show Live Metrics, Show Memory Breakdown, and Auto-Release mode all stored in `UserDefaults`.
 
 ### Requirements
 
@@ -63,6 +70,7 @@ xattr -cr "Free Mac Monitor.app" && open "Free Mac Monitor.app"
 |---|---|
 | Show Live Metrics | Toggles the rotating readout in the menu bar. |
 | Show Memory Breakdown | Switches the MEMORY row to a 5-colour stacked chart + legend. |
+| Theme ▸ | Sub-menu: Liquid Glass (default) · Fallout Terminal. |
 | Auto-Release Memory ▸ | Sub-menu: Notify only · Auto-run prompt password · Auto-run sudoers-free · Off. |
 | Release Memory Now… ⌘R | One-shot manual purge (prompts for password unless sudoers is set up). |
 | Quit Free Mac Monitor | Exits the app. |
@@ -155,19 +163,26 @@ Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
 
 如果你更倾向于从源码编译，请看下方 [编译与运行](#编译与运行)。
 
+### 截图
+
+| Liquid Glass（默认） | Fallout Terminal |
+|---|---|
+| ![Liquid Glass](docs/screenshots/liquid-glass.png) | ![Fallout](docs/screenshots/fallout.png) |
+
 ### 功能特性
 
+- **双主题** *（v1.2）* —— 默认 Liquid Glass 液态玻璃外观（半透明 `NSVisualEffectView` 背板 + SF Pro + 渐变 pill 柱状图）；也可切换到 Fallout Terminal（VT323 荧光绿 CRT + ASCII 柱状图 + 扫描线）。右键 → **Theme ▸** 切换，两套皮肤共用 DOM 和状态。
 - **菜单栏指示器** —— 一个小小的 `>>` 图标，当任何指标突破预警阈值时会变红。
-- **实时指标模式** —— 右键点击图标，切换 **Show Live Metrics**。图标会变成滚动读数，每 3 秒循环显示：
+- **实时指标模式** *（v1.0）* —— 右键点击图标，切换 **Show Live Metrics**。图标会变成滚动读数，每 3 秒循环显示：
   ```
   CPU 20%  →  MEM 64%  →  GPU  5%  →  DSK 59%
   ```
   当某项指标触发阈值时，滚动会锁定在该指标并显示为红色，一个循环内就能看到问题。
-- **展开面板** —— 左键点击可打开 320 × 440 的 Pip-Boy 风格仪表盘，内含实时柱状图。点击外部任意位置即可收起。
-- **内存分类展示** *（v1.1）* —— 勾选 **Show Memory Breakdown** 后，内存柱会变成 5 色 stacked 条（App / Wired / Compressed / Cached / Free），与 Activity Monitor 的分类一致，图例显示每类的 GB 数值。
+- **展开面板** —— 左键点击可打开 320 × 460 仪表盘，内含实时柱状图。点击外部任意位置即可收起。
+- **内存分类展示** *（v1.1）* —— 勾选 **Show Memory Breakdown** 后，内存柱会变成 5 色 stacked 条（App / Wired / Compressed / Cached / Free），与 Activity Monitor 的分类一致。图例以 5 行栅格呈现，每行"色块 · 名称 · GB 数值"，永不换行。
 - **高压自动清理** *（v1.1）* —— 当 (App + Wired + Compressed) / 总内存 ≥ 98 % 持续 3 秒时，可选地调用 `/usr/sbin/purge` 并在菜单栏播放动画（`[FLUSH ▓▓▓▓] → MEM 82% ▼16`），`▼N` 是实测下降百分点。三种策略（右键 → **Auto-Release Memory**）：仅通知 / 自动运行（弹密码） / 自动运行（免密码 sudoers）。`⌘R` 立即手动触发一次清理。
 - **持续轮询** —— 1 Hz 的采样频率，无论面板是否展开，菜单栏状态始终保持最新。
-- **偏好持久化** —— 所有开关状态存储在 `UserDefaults` 中。
+- **偏好持久化** —— 主题、实时指标、内存分类、自动清理模式全部存储在 `UserDefaults`。
 
 ### 系统要求
 
@@ -193,6 +208,7 @@ xattr -cr "Free Mac Monitor.app" && open "Free Mac Monitor.app"
 |---|---|
 | Show Live Metrics | 切换菜单栏中的滚动读数显示。 |
 | Show Memory Breakdown | 将 MEMORY 行切换为 5 色 stacked 柱 + 图例。 |
+| Theme ▸ | 子菜单：Liquid Glass（默认） · Fallout Terminal。 |
 | Auto-Release Memory ▸ | 子菜单：仅通知 · 自动运行弹密码 · 自动运行免密码 · 关闭。 |
 | Release Memory Now… ⌘R | 立即手动跑一次 purge（未配置 sudoers 免密码则弹管理员密码）。 |
 | Quit Free Mac Monitor | 退出应用。 |

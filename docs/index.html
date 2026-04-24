@@ -69,8 +69,8 @@
         <ul class="stat-row">
           <li><span class="stat-n">1 Hz</span><span class="stat-l" data-en="POLL RATE" data-zh="采样率">POLL RATE</span></li>
           <li><span class="stat-n">0</span><span class="stat-l" data-en="DEPENDENCIES" data-zh="依赖项">DEPENDENCIES</span></li>
-          <li><span class="stat-n">320×400</span><span class="stat-l" data-en="PANEL SIZE" data-zh="面板尺寸">PANEL SIZE</span></li>
-          <li><span class="stat-n">4</span><span class="stat-l" data-en="METRICS" data-zh="指标数">METRICS</span></li>
+          <li><span class="stat-n">320×460</span><span class="stat-l" data-en="PANEL SIZE" data-zh="面板尺寸">PANEL SIZE</span></li>
+          <li><span class="stat-n">2</span><span class="stat-l" data-en="THEMES" data-zh="主题数">THEMES</span></li>
         </ul>
       </div>
 
@@ -168,9 +168,36 @@
         <article class="feature">
           <div class="feature-icon">&#9670;</div>
           <h3 data-en="Expanding panel" data-zh="展开面板">Expanding panel</h3>
-          <p data-en="Left-click to open a 320×400 Pip-Boy-styled dashboard with live bar charts. Click outside to collapse."
-             data-zh="左键点击打开 320×400 的 Pip-Boy 风格仪表盘，带实时柱状图。点击外部即可收起。">
-            Left-click to open a 320×400 Pip-Boy-styled dashboard with live bar charts. Click outside to collapse.
+          <p data-en="Left-click to open a 320×460 dashboard with live bar charts. Click outside to collapse."
+             data-zh="左键点击打开 320×460 的仪表盘，带实时柱状图。点击外部即可收起。">
+            Left-click to open a 320×460 dashboard with live bar charts. Click outside to collapse.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-icon">&#9670;</div>
+          <h3 data-en="Dual theme" data-zh="双主题">Dual theme <sup style="opacity:0.6;font-size:0.6em">v1.2</sup></h3>
+          <p data-en="Liquid Glass by default — translucent NSVisualEffectView popover with SF Pro and gradient pill bars. Or switch to Fallout Terminal: VT323 CRT phosphor-green with ASCII bars and scanlines. Right-click → Theme ▸."
+             data-zh="默认 Liquid Glass 液态玻璃外观（半透明 NSVisualEffectView + SF Pro + 渐变 pill 柱）。可切换到 Fallout Terminal（VT323 荧光绿 CRT + ASCII 柱 + 扫描线）。右键 → Theme ▸。">
+            Liquid Glass by default — translucent NSVisualEffectView popover with SF Pro and gradient pill bars. Or switch to Fallout Terminal: VT323 CRT phosphor-green with ASCII bars and scanlines. Right-click → Theme ▸.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-icon">&#9670;</div>
+          <h3 data-en="Memory breakdown" data-zh="内存分类">Memory breakdown <sup style="opacity:0.6;font-size:0.6em">v1.1</sup></h3>
+          <p data-en="Toggle Show Memory Breakdown — the MEMORY row becomes a 5-colour stacked chart (App / Wired / Compressed / Cached / Free) with a 5-row legend and GB values, matching Activity Monitor's categorisation."
+             data-zh="勾选 Show Memory Breakdown 后，内存柱切换为 5 色 stacked 条（App / Wired / Compressed / Cached / Free），配 5 行 GB 数值图例，与 Activity Monitor 分类一致。">
+            Toggle Show Memory Breakdown — the MEMORY row becomes a 5-colour stacked chart (App / Wired / Compressed / Cached / Free) with a 5-row legend and GB values, matching Activity Monitor's categorisation.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-icon">&#9670;</div>
+          <h3 data-en="Auto-release memory" data-zh="高压自动清理"><span>Auto-release memory</span> <sup style="opacity:0.6;font-size:0.6em">v1.1</sup></h3>
+          <p data-en="At sustained 98 % memory pressure, optionally fire /usr/sbin/purge and run a live status-bar animation ([FLUSH ▓▓▓▓] → MEM 82 % ▼16). ▼N shows the real measured drop — ▼0 when nothing actually released. Three modes in right-click → Auto-Release Memory ▸."
+             data-zh="(App+Wired+Compressed)/总内存 ≥ 98 % 持续 3 秒时，可选地调用 /usr/sbin/purge 并在菜单栏播放动画（[FLUSH ▓▓▓▓] → MEM 82 % ▼16）。▼N 是实测下降百分点；没释放就显示 ▼0。三种策略：右键 → Auto-Release Memory ▸。">
+            At sustained 98 % memory pressure, optionally fire /usr/sbin/purge and run a live status-bar animation ([FLUSH ▓▓▓▓] → MEM 82 % ▼16). ▼N shows the real measured drop — ▼0 when nothing actually released. Three modes in right-click → Auto-Release Memory ▸.
           </p>
         </article>
 
@@ -194,10 +221,10 @@
 
         <article class="feature">
           <div class="feature-icon">&#9670;</div>
-          <h3 data-en="Persistent preference" data-zh="偏好持久化">Persistent preference</h3>
-          <p data-en="The live-metrics toggle is stored in UserDefaults and restored on next launch."
-             data-zh="实时指标开关状态存入 UserDefaults，下次启动自动恢复。">
-            The live-metrics toggle is stored in UserDefaults and restored on next launch.
+          <h3 data-en="Persistent preferences" data-zh="偏好持久化">Persistent preferences</h3>
+          <p data-en="Theme, Show Live Metrics, Show Memory Breakdown, and Auto-Release mode all persist in UserDefaults and restore on next launch."
+             data-zh="主题、Show Live Metrics、Show Memory Breakdown、Auto-Release 模式全部存入 UserDefaults，下次启动自动恢复。">
+            Theme, Show Live Metrics, Show Memory Breakdown, and Auto-Release mode all persist in UserDefaults and restore on next launch.
           </p>
         </article>
 
