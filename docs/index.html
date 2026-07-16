@@ -204,10 +204,19 @@
 
         <article class="feature">
           <div class="feature-icon">&#9670;</div>
-          <h3 data-en="Always-on polling" data-zh="持续轮询">Always-on polling</h3>
-          <p data-en="1 Hz sampling keeps the menu-bar state current whether the panel is open or not."
-             data-zh="1 Hz 采样频率，无论面板是否展开，菜单栏状态始终最新。">
-            1 Hz sampling keeps the menu-bar state current whether the panel is open or not.
+          <h3 data-en="Adaptive polling" data-zh="自适应轮询">Adaptive polling <sup style="opacity:0.6;font-size:0.6em">v1.3</sup></h3>
+          <p data-en="1 Hz while you're watching; 0.2 Hz (GPU/disk even less) when only alert thresholds need checking. Cached Mach host port and single-key IOKit reads keep the monitor itself near-zero cost."
+             data-zh="有人看时 1 Hz；仅需检查告警阈值时降到 0.2 Hz（GPU / 磁盘更低）。Mach host 端口缓存 + 单键 IOKit 读取，监控工具本身几乎零开销。">
+            1 Hz while you're watching; 0.2 Hz (GPU/disk even less) when only alert thresholds need checking. Cached Mach host port and single-key IOKit reads keep the monitor itself near-zero cost.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature-icon">&#9670;</div>
+          <h3 data-en="Set-and-forget conveniences" data-zh="省心细节">Set-and-forget conveniences <sup style="opacity:0.6;font-size:0.6em">v1.4</sup></h3>
+          <p data-en="Per-metric alert thresholds, Launch at Login (SMAppService), daily update notifications from GitHub Releases, and a fully offline panel — the VT323 font ships inside the app."
+             data-zh="按指标配置告警阈值、登录自启动（SMAppService）、每日检查 GitHub Releases 的更新提醒，以及完全离线的面板 —— VT323 字体已随应用打包。">
+            Per-metric alert thresholds, Launch at Login (SMAppService), daily update notifications from GitHub Releases, and a fully offline panel — the VT323 font ships inside the app.
           </p>
         </article>
 
@@ -291,6 +300,19 @@
       <div class="method-grid">
         <article class="method">
           <div class="method-tag">A</div>
+          <h3 data-en="Homebrew" data-zh="Homebrew">Homebrew</h3>
+          <p data-en="Installs from the pekinlcc/tap cask. --no-quarantine skips the Gatekeeper prompt for this unsigned app."
+             data-zh="通过 pekinlcc/tap 的 cask 安装。--no-quarantine 可跳过未签名应用的 Gatekeeper 弹窗。">
+            Installs from the pekinlcc/tap cask. --no-quarantine skips the Gatekeeper prompt for this unsigned app.
+          </p>
+          <div class="cmd-row">
+            <code id="cmd-brew">brew install --cask --no-quarantine pekinlcc/tap/free-mac-monitor</code>
+            <button class="copy-btn" data-copy="#cmd-brew" aria-label="Copy">COPY</button>
+          </div>
+        </article>
+
+        <article class="method">
+          <div class="method-tag">B</div>
           <h3 data-en="One-line installer" data-zh="一行命令安装">One-line installer</h3>
           <p data-en="Downloads the latest release, verifies the SHA-256, strips the quarantine flag, installs to /Applications and launches the app."
              data-zh="下载最新 Release，校验 SHA-256，去除隔离标记，安装到 /Applications 并启动。">
@@ -303,7 +325,7 @@
         </article>
 
         <article class="method">
-          <div class="method-tag">B</div>
+          <div class="method-tag">C</div>
           <h3 data-en="Direct download" data-zh="直接下载">Direct download</h3>
           <p data-en="Grab the signed .zip from Releases, unzip, drag into /Applications."
              data-zh="在 Releases 里下载 .zip，解压后拖入 /Applications。">
@@ -317,7 +339,7 @@
         </article>
 
         <article class="method">
-          <div class="method-tag">C</div>
+          <div class="method-tag">D</div>
           <h3 data-en="Build from source" data-zh="从源码编译">Build from source</h3>
           <p data-en="If you have Xcode 15 / Command Line Tools installed."
              data-zh="若你已安装 Xcode 15 或 Command Line Tools。">

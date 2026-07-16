@@ -119,8 +119,24 @@ function tickClock() {
   if (a) a.textContent = ts;
   if (b) b.textContent = ts;
 }
-setInterval(tickClock, 1000);
-tickClock();
+
+/* The webview outlives the panel (it is only ordered out, never torn down),
+   so Swift tells us when we're actually on screen and the clock stops
+   burning wakeups while hidden. */
+var clockTimer = null;
+function startClock() {
+  if (clockTimer) return;
+  tickClock();
+  clockTimer = setInterval(tickClock, 1000);
+}
+function stopClock() {
+  if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
+}
+window.setPanelVisible = function(visible) {
+  if (visible) startClock();
+  else         stopClock();
+};
+startClock();   // the page only loads when the panel first opens
 
 /* Apply theme / breakdown body classes based on Swift-provided opts. */
 function applyMode(opts) {

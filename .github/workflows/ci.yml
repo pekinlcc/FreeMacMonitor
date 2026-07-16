@@ -11,6 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Swift unit tests
+        run: swift test
+
+      - name: JS unit tests
+        run: node scripts/test-js.mjs
+
       - name: Build .app bundle
         run: ./build.sh
 

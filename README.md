@@ -16,6 +16,7 @@ A minimal macOS menu-bar system monitor with a retro CRT / Pip-Boy aesthetic. Pu
 
 | Method | Command |
 |---|---|
+| Homebrew | `brew install --cask --no-quarantine pekinlcc/tap/free-mac-monitor` |
 | One-line install | `curl -fsSL https://raw.githubusercontent.com/pekinlcc/FreeMacMonitor/main/scripts/install.sh \| bash` |
 | Manual | [Download the latest release](https://github.com/pekinlcc/FreeMacMonitor/releases/latest), unzip, then drag `Free Mac Monitor.app` into `/Applications`. |
 
@@ -54,7 +55,11 @@ If you prefer building from source, see [Build & run](#build--run) below.
 - **Memory breakdown** *(v1.1)* — toggle **Show Memory Breakdown** and the memory bar becomes a 5-colour stacked chart (App / Wired / Compressed / Cached / Free), matching Activity Monitor's categories. Legend renders as a 5-row grid with GB values per category, never wraps.
 - **Auto-release at high pressure** *(v1.1)* — when (App + Wired + Compressed) / Total ≥ 98 % for 3 consecutive seconds, optionally fire `/usr/sbin/purge` and show a live status-bar animation (`[FLUSH ▓▓▓▓] → MEM 82% ▼16`) with the real measured reduction. Three modes (right-click → **Auto-Release Memory**): Notify only / Auto-run with password prompt / Auto-run with a pre-set sudoers rule. `⌘R` from the menu triggers a one-shot release manually.
 - **Adaptive polling** *(v1.3)* — 1 Hz while the panel is open or Live Metrics is on; relaxed to 0.2 Hz (with GPU/disk sampled even less often) when only the alert thresholds need watching. Timer tolerance lets macOS coalesce wakeups, so the monitor itself stays near-zero cost.
-- **Persistent preferences** — theme, Show Live Metrics, Show Memory Breakdown, and Auto-Release mode all stored in `UserDefaults`.
+- **Configurable alert thresholds** *(v1.4)* — right-click → **Alert Thresholds ▸** to pick the per-metric percentage that turns the icon red (defaults: CPU/MEM/GPU 80 %, Disk 85 %).
+- **Launch at Login** *(v1.4)* — one menu toggle, implemented with `SMAppService` (no helper app, no LaunchAgent plist).
+- **Update notifications** *(v1.4)* — checks GitHub Releases once a day (and on demand via **Check for Updates…**); click the notification to open the release page. No Sparkle, no telemetry — one anonymous API call.
+- **Fully offline panel** *(v1.4)* — the VT323 terminal font is bundled (OFL licence included) instead of loaded from Google Fonts, so the Fallout theme renders identically with no network and no font request.
+- **Persistent preferences** — theme, Show Live Metrics, Show Memory Breakdown, Auto-Release mode, and alert thresholds all stored in `UserDefaults`.
 
 ### Requirements
 
@@ -83,6 +88,9 @@ xattr -cr "Free Mac Monitor.app" && open "Free Mac Monitor.app"
 | Theme ▸ | Sub-menu: Liquid Glass (default) · Fallout Terminal. |
 | Auto-Release Memory ▸ | Sub-menu: Notify only · Auto-run prompt password · Auto-run sudoers-free · Off. |
 | Release Memory Now… ⌘R | One-shot manual purge (prompts for password unless sudoers is set up). |
+| Alert Thresholds ▸ | Per-metric red-alert percentage (CPU / Memory / GPU / Disk). |
+| Launch at Login | Registers/unregisters the app as a login item via `SMAppService`. |
+| Check for Updates… | Queries GitHub Releases and notifies you of the result. |
 | Quit Free Mac Monitor | Exits the app. |
 
 Left-click opens / closes the dashboard panel.
@@ -106,14 +114,14 @@ Cooldown between triggers is 60 seconds; the status-bar animation shows the meas
 
 ### Alert thresholds
 
-Compiled-in constants in [`StatusBarController.swift`](Sources/FreeMacMonitor/StatusBarController.swift):
+Configurable via right-click → **Alert Thresholds ▸** (stored in `UserDefaults`):
 
-| Metric | Default |
-|---|---|
-| CPU  | 80% |
-| Memory | 80% |
-| GPU  | 80% |
-| Disk | 85% |
+| Metric | Default | Choices |
+|---|---|---|
+| CPU  | 80% | 60 / 70 / 80 / 90 |
+| Memory | 80% | 60 / 70 / 80 / 90 |
+| GPU  | 80% | 60 / 70 / 80 / 90 |
+| Disk | 85% | 70 / 80 / 85 / 90 / 95 |
 
 ### Regenerating the app icon
 
@@ -162,6 +170,7 @@ Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
 
 | 方式 | 命令 |
 |---|---|
+| Homebrew | `brew install --cask --no-quarantine pekinlcc/tap/free-mac-monitor` |
 | 一行命令安装 | `curl -fsSL https://raw.githubusercontent.com/pekinlcc/FreeMacMonitor/main/scripts/install.sh \| bash` |
 | 手动下载 | 前往 [Releases 页面](https://github.com/pekinlcc/FreeMacMonitor/releases/latest) 下载压缩包，解压后把 `Free Mac Monitor.app` 拖到 `/Applications`。 |
 
@@ -200,7 +209,11 @@ Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
 - **内存分类展示** *（v1.1）* —— 勾选 **Show Memory Breakdown** 后，内存柱会变成 5 色 stacked 条（App / Wired / Compressed / Cached / Free），与 Activity Monitor 的分类一致。图例以 5 行栅格呈现，每行"色块 · 名称 · GB 数值"，永不换行。
 - **高压自动清理** *（v1.1）* —— 当 (App + Wired + Compressed) / 总内存 ≥ 98 % 持续 3 秒时，可选地调用 `/usr/sbin/purge` 并在菜单栏播放动画（`[FLUSH ▓▓▓▓] → MEM 82% ▼16`），`▼N` 是实测下降百分点。三种策略（右键 → **Auto-Release Memory**）：仅通知 / 自动运行（弹密码） / 自动运行（免密码 sudoers）。`⌘R` 立即手动触发一次清理。
 - **自适应轮询** *（v1.3）* —— 面板打开或开启实时指标时 1 Hz 采样；仅需检查告警阈值时降到 0.2 Hz（GPU / 磁盘采样频率更低），并设置 timer tolerance 让系统合并唤醒 —— 监控工具本身几乎不耗电。
-- **偏好持久化** —— 主题、实时指标、内存分类、自动清理模式全部存储在 `UserDefaults`。
+- **可配置告警阈值** *（v1.4）* —— 右键 → **Alert Thresholds ▸** 按指标选择变红阈值（默认 CPU/内存/GPU 80 %，磁盘 85 %）。
+- **登录自启动** *（v1.4）* —— 菜单一键开关，基于 `SMAppService` 实现（无 helper、无 LaunchAgent plist）。
+- **更新提醒** *（v1.4）* —— 每天检查一次 GitHub Releases（也可通过 **Check for Updates…** 手动检查），点击通知直达发布页。无 Sparkle、无遥测，只有一次匿名 API 请求。
+- **面板完全离线** *（v1.4）* —— VT323 终端字体已随应用打包（附 OFL 许可证），不再从 Google Fonts 加载；Fallout 主题在无网络时渲染效果完全一致。
+- **偏好持久化** —— 主题、实时指标、内存分类、自动清理模式、告警阈值全部存储在 `UserDefaults`。
 
 ### 系统要求
 
@@ -229,6 +242,9 @@ xattr -cr "Free Mac Monitor.app" && open "Free Mac Monitor.app"
 | Theme ▸ | 子菜单：Liquid Glass（默认） · Fallout Terminal。 |
 | Auto-Release Memory ▸ | 子菜单：仅通知 · 自动运行弹密码 · 自动运行免密码 · 关闭。 |
 | Release Memory Now… ⌘R | 立即手动跑一次 purge（未配置 sudoers 免密码则弹管理员密码）。 |
+| Alert Thresholds ▸ | 按指标设置变红的告警阈值（CPU / 内存 / GPU / 磁盘）。 |
+| Launch at Login | 通过 `SMAppService` 注册 / 取消登录自启动。 |
+| Check for Updates… | 查询 GitHub Releases 并以通知告知结果。 |
 | Quit Free Mac Monitor | 退出应用。 |
 
 左键点击可展开 / 收起仪表盘面板。
@@ -252,14 +268,14 @@ macOS 上唯一诚实的显式内存释放机制是 `/usr/sbin/purge`（通常�
 
 ### 预警阈值
 
-阈值定义在 [`StatusBarController.swift`](Sources/FreeMacMonitor/StatusBarController.swift) 中作为编译期常量：
+通过右键 → **Alert Thresholds ▸** 配置（保存在 `UserDefaults`）：
 
-| 指标 | 默认值 |
-|---|---|
-| CPU  | 80% |
-| 内存 | 80% |
-| GPU  | 80% |
-| 磁盘 | 85% |
+| 指标 | 默认值 | 可选值 |
+|---|---|---|
+| CPU  | 80% | 60 / 70 / 80 / 90 |
+| 内存 | 80% | 60 / 70 / 80 / 90 |
+| GPU  | 80% | 60 / 70 / 80 / 90 |
+| 磁盘 | 85% | 70 / 80 / 85 / 90 / 95 |
 
 ### 重新生成应用图标
 
@@ -295,3 +311,7 @@ Info.plist                  — LSUIElement、CFBundleIconFile、标识符
 - 单个自适应定时器（有人看时 1 Hz，空闲 0.2 Hz，带 tolerance 供系统合并唤醒）同时驱动菜单栏渲染和（可选的）WebKit 面板更新。Mach host 端口、页大小、总内存只取一次；GPU 利用率改用单键 `IORegistryEntryCreateCFProperty` 读取，磁盘用带缓存的一次 `statfs` —— 采样热路径几乎零分配。
 - 仪表盘是本地 HTML（通过 `WKWebView.loadFileURL` 加载），指标更新通过 `evaluateJavaScript` 调用发送 —— 简单直接，不需要 IPC，也不需要服务器。
 - 通过 `NSEvent.addGlobalMonitorForEvents` 捕获面板外的点击事件，它只会在其他应用的窗口中触发，避免了与状态栏按钮点击之间的重复切换竞态。
+
+---
+
+**Font credit:** the Fallout theme uses [VT323](https://fonts.google.com/specimen/VT323) by Peter Hull, bundled under the [SIL Open Font License](Sources/FreeMacMonitor/Resources/VT323-OFL.txt). / Fallout 主题使用 Peter Hull 设计的 [VT323](https://fonts.google.com/specimen/VT323) 字体，按 [SIL 开源字体许可证](Sources/FreeMacMonitor/Resources/VT323-OFL.txt) 随应用分发。

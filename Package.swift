@@ -12,6 +12,11 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("IOKit")
             ]
+        ),
+        .testTarget(
+            name: "FreeMacMonitorTests",
+            dependencies: ["FreeMacMonitor"],
+            path: "Tests/FreeMacMonitorTests"
         )
     ]
 )

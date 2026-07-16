@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import UserNotifications
 import WebKit
 
@@ -7,13 +8,18 @@ class StatusBarController: NSObject {
     private var panel: NSPanel?
     private var webView: WKWebView?
     private var pollingTimer: Timer?
+    private var updateCheckTimer: Timer?
     private var clickOutsideMonitor: Any?
 
-    // Thresholds for status-bar icon alert (%)
-    private let cpuAlertThreshold:  Double = 80
-    private let memAlertThreshold:  Double = 80
-    private let gpuAlertThreshold:  Double = 80
-    private let diskAlertThreshold: Double = 85
+    // Alert thresholds (%) — user-configurable via right-click ▸ Alert Thresholds.
+    private let cpuThresholdKey  = "alertThresholdCPU"
+    private let memThresholdKey  = "alertThresholdMEM"
+    private let gpuThresholdKey  = "alertThresholdGPU"
+    private let diskThresholdKey = "alertThresholdDSK"
+    private var cpuAlertThreshold:  Double { UserDefaults.standard.double(forKey: cpuThresholdKey) }
+    private var memAlertThreshold:  Double { UserDefaults.standard.double(forKey: memThresholdKey) }
+    private var gpuAlertThreshold:  Double { UserDefaults.standard.double(forKey: gpuThresholdKey) }
+    private var diskAlertThreshold: Double { UserDefaults.standard.double(forKey: diskThresholdKey) }
 
     // Auto-release: trigger when pressure ≥ 98 sustained for `autoReleaseHoldSec`.
     // Time-based (not tick-based) so the adaptive polling interval below can't
@@ -90,9 +96,17 @@ class StatusBarController: NSObject {
 
     override init() {
         super.init()
+        UserDefaults.standard.register(defaults: [
+            cpuThresholdKey:  80,
+            memThresholdKey:  80,
+            gpuThresholdKey:  80,
+            diskThresholdKey: 85,
+        ])
         setupStatusItem()
         requestNotificationPermissionIfNeeded()
+        UNUserNotificationCenter.current().delegate = self
         startPolling()
+        scheduleUpdateChecks()
     }
 
     // MARK: - Status Item
@@ -181,6 +195,42 @@ class StatusBarController: NSObject {
         releaseNowItem.isEnabled = !isReleasing
         menu.addItem(releaseNowItem)
 
+        let thresholdsItem = NSMenuItem(title: "Alert Thresholds", action: nil, keyEquivalent: "")
+        let thresholdsSub  = NSMenu(title: "Alert Thresholds")
+        let thresholdDefs: [(label: String, key: String, options: [Int])] = [
+            ("CPU",    cpuThresholdKey,  [60, 70, 80, 90]),
+            ("Memory", memThresholdKey,  [60, 70, 80, 90]),
+            ("GPU",    gpuThresholdKey,  [60, 70, 80, 90]),
+            ("Disk",   diskThresholdKey, [70, 80, 85, 90, 95]),
+        ]
+        for def in thresholdDefs {
+            let current = Int(UserDefaults.standard.double(forKey: def.key))
+            let sub = NSMenu(title: def.label)
+            for pct in def.options {
+                let it = NSMenuItem(title: "\(pct) %", action: #selector(setAlertThreshold(_:)), keyEquivalent: "")
+                it.target = self
+                it.state  = (current == pct) ? .on : .off
+                it.representedObject = "\(def.key):\(pct)"
+                sub.addItem(it)
+            }
+            let parent = NSMenuItem(title: "\(def.label) — \(current) %", action: nil, keyEquivalent: "")
+            parent.submenu = sub
+            thresholdsSub.addItem(parent)
+        }
+        thresholdsItem.submenu = thresholdsSub
+        menu.addItem(thresholdsItem)
+
+        menu.addItem(.separator())
+
+        let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        loginItem.target = self
+        loginItem.state  = (SMAppService.mainApp.status == .enabled) ? .on : .off
+        menu.addItem(loginItem)
+
+        let updateItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdatesManually), keyEquivalent: "")
+        updateItem.target = self
+        menu.addItem(updateItem)
+
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: "Quit Free Mac Monitor", action: #selector(quitApp), keyEquivalent: "q")
@@ -188,6 +238,27 @@ class StatusBarController: NSObject {
         menu.addItem(quit)
 
         return menu
+    }
+
+    @objc private func setAlertThreshold(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String else { return }
+        let parts = raw.split(separator: ":")
+        guard parts.count == 2, let pct = Double(parts[1]) else { return }
+        UserDefaults.standard.set(pct, forKey: String(parts[0]))
+        if let snap = cachedSnap { renderStatusBar(snap) }
+    }
+
+    @objc private func toggleLaunchAtLogin() {
+        let service = SMAppService.mainApp
+        do {
+            if service.status == .enabled {
+                try service.unregister()
+            } else {
+                try service.register()
+            }
+        } catch {
+            postSimpleNotification(title: "Launch at Login failed", body: error.localizedDescription)
+        }
     }
 
     @objc private func toggleLiveMetrics() {
@@ -260,13 +331,24 @@ class StatusBarController: NSObject {
         applyPanelChromeForTheme()
         p.makeKeyAndOrderFront(nil)
         installClickOutsideMonitor()
+        setWebClockRunning(true)
         reschedulePolling()      // panel visible → 1 Hz; also ticks immediately
     }
 
     private func closePanel() {
         removeClickOutsideMonitor()
         panel?.orderOut(nil)
+        setWebClockRunning(false)
         reschedulePolling()
+    }
+
+    // The webview stays alive while the panel is merely ordered out; tell the
+    // page so its 1 s clock interval stops burning wakeups off screen.
+    private func setWebClockRunning(_ running: Bool) {
+        webView?.evaluateJavaScript(
+            "window.setPanelVisible && window.setPanelVisible(\(running ? "true" : "false"));",
+            completionHandler: nil
+        )
     }
 
     private func installClickOutsideMonitor() {
@@ -718,6 +800,49 @@ class StatusBarController: NSObject {
         webView?.evaluateJavaScript(js, completionHandler: nil)
     }
 
+    // MARK: - Update checks
+
+    private func scheduleUpdateChecks() {
+        // First check shortly after launch (off the startup path), then daily.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            self?.runUpdateCheck(manual: false)
+        }
+        let timer = Timer.scheduledTimer(withTimeInterval: 24 * 3600, repeats: true) { [weak self] _ in
+            self?.runUpdateCheck(manual: false)
+        }
+        timer.tolerance = 3600
+        updateCheckTimer = timer
+    }
+
+    @objc private func checkForUpdatesManually() {
+        runUpdateCheck(manual: true)
+    }
+
+    private func runUpdateCheck(manual: Bool) {
+        UpdateChecker.check { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .upToDate:
+                if manual {
+                    self.postSimpleNotification(
+                        title: "Free Mac Monitor",
+                        body: "You're on the latest version (\(UpdateChecker.currentVersion))."
+                    )
+                }
+            case .updateAvailable(let version, let url):
+                // Auto checks nag once per version; manual checks always answer.
+                let key = "lastNotifiedUpdateVersion"
+                if !manual, UserDefaults.standard.string(forKey: key) == version { return }
+                UserDefaults.standard.set(version, forKey: key)
+                self.postUpdateNotification(version: version, url: url)
+            case .failed(let message):
+                if manual {
+                    self.postSimpleNotification(title: "Update check failed", body: message)
+                }
+            }
+        }
+    }
+
     // MARK: - Notifications
 
     private func requestNotificationPermissionIfNeeded() {
@@ -745,9 +870,50 @@ class StatusBarController: NSObject {
         UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
     }
 
+    private func postSimpleNotification(title: String, body: String) {
+        let c = UNMutableNotificationContent()
+        c.title = title
+        c.body  = body
+        let req = UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil)
+        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
+    }
+
+    private func postUpdateNotification(version: String, url: String) {
+        let c = UNMutableNotificationContent()
+        c.title    = "Update available"
+        c.body     = "Free Mac Monitor \(version) is out (you have \(UpdateChecker.currentVersion)). Click to open the release page."
+        c.sound    = .default
+        c.userInfo = ["url": url]
+        let req = UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil)
+        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
+    }
+
     deinit {
         pollingTimer?.invalidate()
+        updateCheckTimer?.invalidate()
         animationTimer?.invalidate()
         removeClickOutsideMonitor()
+    }
+}
+
+// MARK: - Notification click handling
+
+extension StatusBarController: UNUserNotificationCenterDelegate {
+    // Show banners even though the agent app is technically "active".
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler:
+                                    @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        if let raw = response.notification.request.content.userInfo["url"] as? String,
+           let url = URL(string: raw) {
+            NSWorkspace.shared.open(url)
+        }
+        completionHandler()
     }
 }

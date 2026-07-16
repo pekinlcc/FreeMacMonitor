@@ -7,6 +7,17 @@
    stacked 5-color bar + 5-row legend.
    ═══════════════════════════════════════════════════════════════════ */
 
+/* Bundled locally (VT323-Regular.ttf, OFL licence alongside) — the panel
+   works fully offline and, unlike Google's latin subset, the full font
+   actually contains the ▓░═◆ block glyphs the fallout bars are drawn with. */
+@font-face {
+  font-family: 'VT323';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('VT323-Regular.ttf') format('truetype');
+}
+
 *, *::before, *::after {
   margin: 0; padding: 0;
   box-sizing: border-box;
