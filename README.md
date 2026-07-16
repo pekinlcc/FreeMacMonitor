@@ -16,7 +16,6 @@ A minimal macOS menu-bar system monitor with a retro CRT / Pip-Boy aesthetic. Pu
 
 | Method | Command |
 |---|---|
-| Homebrew | `brew install --cask --no-quarantine pekinlcc/tap/free-mac-monitor` |
 | One-line install | `curl -fsSL https://raw.githubusercontent.com/pekinlcc/FreeMacMonitor/main/scripts/install.sh \| bash` |
 | Manual | [Download the latest release](https://github.com/pekinlcc/FreeMacMonitor/releases/latest), unzip, then drag `Free Mac Monitor.app` into `/Applications`. |
 
@@ -170,7 +169,6 @@ Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
 
 | 方式 | 命令 |
 |---|---|
-| Homebrew | `brew install --cask --no-quarantine pekinlcc/tap/free-mac-monitor` |
 | 一行命令安装 | `curl -fsSL https://raw.githubusercontent.com/pekinlcc/FreeMacMonitor/main/scripts/install.sh \| bash` |
 | 手动下载 | 前往 [Releases 页面](https://github.com/pekinlcc/FreeMacMonitor/releases/latest) 下载压缩包，解压后把 `Free Mac Monitor.app` 拖到 `/Applications`。 |
 
