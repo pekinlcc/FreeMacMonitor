@@ -6,10 +6,12 @@ BIN_NAME="FreeMacMonitor"
 # User-facing .app bundle name (spaces OK; shown in Finder)
 BUNDLE="Free Mac Monitor.app"
 
-echo "=== Building ${BIN_NAME} ==="
-swift build -c release
+echo "=== Building ${BIN_NAME} (universal) ==="
+# Dual --arch produces a fat arm64 + x86_64 binary (output lands under
+# .build/apple/ instead of .build/release/).
+swift build -c release --arch arm64 --arch x86_64
 
-BINARY=".build/release/${BIN_NAME}"
+BINARY=".build/apple/Products/Release/${BIN_NAME}"
 if [ ! -f "${BINARY}" ]; then
     echo "ERROR: binary not found at ${BINARY}"
     exit 1
@@ -32,6 +34,10 @@ fi
 if [ -f "AppIcon.icns" ]; then
     cp "AppIcon.icns" "${BUNDLE}/Contents/Resources/AppIcon.icns"
 fi
+
+# Ad-hoc sign — keeps the bundle stable across launches and reduces
+# Gatekeeper friction (users may still need the xattr step on first run).
+codesign --force --deep --sign - "${BUNDLE}"
 
 echo ""
 echo "=== Done: ${BUNDLE} ==="

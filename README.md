@@ -1,5 +1,7 @@
 # Free Mac Monitor
 
+[![CI](https://github.com/pekinlcc/FreeMacMonitor/actions/workflows/ci.yml/badge.svg)](https://github.com/pekinlcc/FreeMacMonitor/actions/workflows/ci.yml)
+
 [English](#english) · [中文](#中文) · [🌐 Website](https://pekinlcc.github.io/FreeMacMonitor/)
 
 ---
@@ -51,7 +53,7 @@ If you prefer building from source, see [Build & run](#build--run) below.
 - **Expanding panel** — left-click to open a 320 × 460 dashboard with live bar charts. Click anywhere outside to collapse.
 - **Memory breakdown** *(v1.1)* — toggle **Show Memory Breakdown** and the memory bar becomes a 5-colour stacked chart (App / Wired / Compressed / Cached / Free), matching Activity Monitor's categories. Legend renders as a 5-row grid with GB values per category, never wraps.
 - **Auto-release at high pressure** *(v1.1)* — when (App + Wired + Compressed) / Total ≥ 98 % for 3 consecutive seconds, optionally fire `/usr/sbin/purge` and show a live status-bar animation (`[FLUSH ▓▓▓▓] → MEM 82% ▼16`) with the real measured reduction. Three modes (right-click → **Auto-Release Memory**): Notify only / Auto-run with password prompt / Auto-run with a pre-set sudoers rule. `⌘R` from the menu triggers a one-shot release manually.
-- **Always-on polling** at 1 Hz — the menu-bar state stays current whether the panel is open or not.
+- **Adaptive polling** *(v1.3)* — 1 Hz while the panel is open or Live Metrics is on; relaxed to 0.2 Hz (with GPU/disk sampled even less often) when only the alert thresholds need watching. Timer tolerance lets macOS coalesce wakeups, so the monitor itself stays near-zero cost.
 - **Persistent preferences** — theme, Show Live Metrics, Show Memory Breakdown, and Auto-Release mode all stored in `UserDefaults`.
 
 ### Requirements
@@ -144,7 +146,7 @@ Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
 ### How it works
 
 - The app runs with `LSUIElement = true` — no Dock icon, no app-switcher entry.
-- A single 1 Hz timer drives both the menu-bar render and the (optional) WebKit panel update.
+- A single adaptive timer (1 Hz watched / 0.2 Hz idle, with tolerance for wakeup coalescing) drives both the menu-bar render and the (optional) WebKit panel update. The Mach host port, page size, and total RAM are cached once; GPU utilisation is read via a single-key `IORegistryEntryCreateCFProperty` fetch and disk via one cached `statfs` — the sampling hot path allocates almost nothing.
 - The dashboard is local HTML (loaded via `WKWebView.loadFileURL`) and receives metric updates through `evaluateJavaScript` calls — simple, no IPC, no server.
 - Clicking outside the open panel is caught with `NSEvent.addGlobalMonitorForEvents`, which fires only for events in other apps' windows, avoiding re-toggle races with the status-bar button click.
 
@@ -197,7 +199,7 @@ Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
 - **展开面板** —— 左键点击可打开 320 × 460 仪表盘，内含实时柱状图。点击外部任意位置即可收起。
 - **内存分类展示** *（v1.1）* —— 勾选 **Show Memory Breakdown** 后，内存柱会变成 5 色 stacked 条（App / Wired / Compressed / Cached / Free），与 Activity Monitor 的分类一致。图例以 5 行栅格呈现，每行"色块 · 名称 · GB 数值"，永不换行。
 - **高压自动清理** *（v1.1）* —— 当 (App + Wired + Compressed) / 总内存 ≥ 98 % 持续 3 秒时，可选地调用 `/usr/sbin/purge` 并在菜单栏播放动画（`[FLUSH ▓▓▓▓] → MEM 82% ▼16`），`▼N` 是实测下降百分点。三种策略（右键 → **Auto-Release Memory**）：仅通知 / 自动运行（弹密码） / 自动运行（免密码 sudoers）。`⌘R` 立即手动触发一次清理。
-- **持续轮询** —— 1 Hz 的采样频率，无论面板是否展开，菜单栏状态始终保持最新。
+- **自适应轮询** *（v1.3）* —— 面板打开或开启实时指标时 1 Hz 采样；仅需检查告警阈值时降到 0.2 Hz（GPU / 磁盘采样频率更低），并设置 timer tolerance 让系统合并唤醒 —— 监控工具本身几乎不耗电。
 - **偏好持久化** —— 主题、实时指标、内存分类、自动清理模式全部存储在 `UserDefaults`。
 
 ### 系统要求
@@ -290,6 +292,6 @@ Info.plist                  — LSUIElement、CFBundleIconFile、标识符
 ### 实现原理
 
 - 应用以 `LSUIElement = true` 运行 —— 无 Dock 图标，也不出现在应用切换器中。
-- 单个 1 Hz 定时器同时驱动菜单栏渲染和（可选的）WebKit 面板更新。
+- 单个自适应定时器（有人看时 1 Hz，空闲 0.2 Hz，带 tolerance 供系统合并唤醒）同时驱动菜单栏渲染和（可选的）WebKit 面板更新。Mach host 端口、页大小、总内存只取一次；GPU 利用率改用单键 `IORegistryEntryCreateCFProperty` 读取，磁盘用带缓存的一次 `statfs` —— 采样热路径几乎零分配。
 - 仪表盘是本地 HTML（通过 `WKWebView.loadFileURL` 加载），指标更新通过 `evaluateJavaScript` 调用发送 —— 简单直接，不需要 IPC，也不需要服务器。
 - 通过 `NSEvent.addGlobalMonitorForEvents` 捕获面板外的点击事件，它只会在其他应用的窗口中触发，避免了与状态栏按钮点击之间的重复切换竞态。

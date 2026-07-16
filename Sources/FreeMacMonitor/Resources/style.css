@@ -80,7 +80,35 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
   pointer-events: none;
   z-index: 0;
 }
+/* Bottom-edge reflection — faint light bounce that closes the glass shape. */
+.theme-liquid .container::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 24%;
+  background: linear-gradient(0deg,
+              rgba(255,255,255,0.05) 0%,
+              transparent            100%);
+  pointer-events: none;
+  z-index: 0;
+}
 .theme-liquid .container > * { position: relative; z-index: 1; }
+
+/* Pulsing live indicator in the header. */
+.theme-liquid .live-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: 1px;
+  background: #35ffb0;
+  box-shadow: 0 0 6px rgba(53,255,176,0.85);
+  animation: live-pulse 2.4s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1;    }
+  50%      { opacity: 0.35; }
+}
 
 .theme-liquid .l-header {
   display: flex;
@@ -121,12 +149,26 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
 }
 
 .theme-liquid .metric-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(255,255,255,0.55);
 }
+/* Tiny colour key in front of each metric name, matching its bar gradient. */
+.theme-liquid .metric-name::before {
+  content: '';
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.theme-liquid .m-cpu  .metric-name::before { background: #22c4ff; box-shadow: 0 0 5px rgba(34,196,255,0.7); }
+.theme-liquid .m-mem  .metric-name::before { background: #38f8c8; box-shadow: 0 0 5px rgba(56,248,200,0.7); }
+.theme-liquid .m-gpu  .metric-name::before { background: #c078ff; box-shadow: 0 0 5px rgba(192,120,255,0.7); }
+.theme-liquid .m-disk .metric-name::before { background: #ffb37a; box-shadow: 0 0 5px rgba(255,179,122,0.7); }
 
 .theme-liquid .metric-pct {
   font-size: 20px;
@@ -135,7 +177,11 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
   color: rgba(255,255,255,0.98);
   font-variant-numeric: tabular-nums;
   text-align: right;
+  transition: color 0.3s ease-out;
 }
+/* Number follows the bar into warn/crit. */
+.theme-liquid .metric.warn .metric-pct { color: #ffc46b; }
+.theme-liquid .metric.crit .metric-pct { color: #ff7a7a; }
 
 .theme-liquid .bar-pill {
   height: 6px;
@@ -147,11 +193,29 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
   overflow: hidden;
 }
 .theme-liquid .bar-pill .fill {
+  position: relative;
   height: 100%;
   border-radius: 999px;
   width: 0;
+  overflow: hidden;
   transition: width 0.3s ease-out;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);  /* wet-looking top */
+}
+/* Slow light sweep across the fill — the "liquid" in liquid glass. */
+.theme-liquid .bar-pill .fill::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 48px;
+  background: linear-gradient(90deg,
+              transparent,
+              rgba(255,255,255,0.45),
+              transparent);
+  animation: fill-shimmer 3.6s ease-in-out infinite;
+}
+@keyframes fill-shimmer {
+  0%       { left: -48px;  }
+  60%,100% { left: 100%;   }
 }
 .theme-liquid .bar-pill .fill.cpu  { background: linear-gradient(90deg, #22c4ff, #5a7fff); }
 .theme-liquid .bar-pill .fill.mem  { background: linear-gradient(90deg, #38f8c8, #22c4ff); }
@@ -269,10 +333,49 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
    ═══════════════════════════════════════════════════════════════════ */
 
 .theme-fallout {
-  background: #060d06;                /* opaque → covers the NSVisualEffectView */
+  /* Opaque → covers the NSVisualEffectView. Slight centre-glow reads as a
+     powered-on phosphor tube rather than a flat colour fill. */
+  background: radial-gradient(ellipse at 50% 32%,
+              #0b170a  0%,
+              #071007 55%,
+              #050b05 100%);
   color: #39ff14;
   font-family: 'VT323', 'Andale Mono', 'Courier New', Courier, monospace;
   font-size: 15px;
+}
+
+/* Slow CRT refresh band drifting down the tube.
+   (Hidden in the liquid theme by the .only-fallout rule.) */
+.theme-fallout .crt-sweep {
+  position: fixed;
+  left: 0; right: 0; top: 0;
+  height: 110px;
+  background: linear-gradient(to bottom,
+              transparent,
+              rgba(57,255,20,0.045) 45%,
+              rgba(57,255,20,0.02)  60%,
+              transparent);
+  pointer-events: none;
+  z-index: 52;
+  animation: crt-sweep 8s linear infinite;
+}
+@keyframes crt-sweep {
+  from { transform: translateY(-130px); }
+  to   { transform: translateY(620px);  }
+}
+
+/* Barely-there brightness wobble — old tubes never sit perfectly still. */
+.theme-fallout .container {
+  animation: crt-flicker 7s linear infinite;
+}
+@keyframes crt-flicker {
+  0%, 100% { opacity: 1;     }
+  8%       { opacity: 0.975; }
+  10%      { opacity: 1;     }
+  46%      { opacity: 0.985; }
+  48%      { opacity: 1;     }
+  74%      { opacity: 0.97;  }
+  76%      { opacity: 1;     }
 }
 
 /* Scanline overlay */
@@ -319,6 +422,11 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
   letter-spacing: 1px;
   color: #39ff14;
   text-shadow: 0 0 10px #39ff14, 0 0 20px #39ff14;
+  animation: logo-breathe 3.4s ease-in-out infinite;
+}
+@keyframes logo-breathe {
+  0%, 100% { text-shadow: 0 0 10px #39ff14, 0 0 22px rgba(57,255,20,0.75); }
+  50%      { text-shadow: 0 0  6px #39ff14, 0 0 13px rgba(57,255,20,0.40); }
 }
 .theme-fallout .f-model {
   font-size: 12px;
@@ -365,6 +473,9 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
   min-width: 52px;
   text-align: right;
 }
+/* Number follows the bar into warn/crit. */
+.theme-fallout .metric.warn .metric-pct { color: #ffcc00; text-shadow: 0 0 6px #ffcc00; }
+.theme-fallout .metric.crit .metric-pct { color: #ff3a00; text-shadow: 0 0 6px #ff3a00; }
 
 .theme-fallout .bar-ascii {
   font-size: 14px;
@@ -375,6 +486,9 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
 .theme-fallout .bar-ascii .lit  { color: #39ff14; text-shadow: 0 0 5px #39ff14; }
 .theme-fallout .bar-ascii .warn { color: #ffcc00; text-shadow: 0 0 5px #ffcc00; }
 .theme-fallout .bar-ascii .crit { color: #ff3a00; text-shadow: 0 0 5px #ff3a00; }
+/* Dim terminal-style bracket caps around ASCII bars. */
+.theme-fallout .bar-ascii .brk,
+.theme-fallout .mem-stacked-ascii .brk { color: #1a7a00; text-shadow: none; }
 
 /* Memory stacked (ASCII) */
 .theme-fallout .mem-stacked-ascii {
@@ -470,4 +584,18 @@ body.show-breakdown       .only-no-breakdown { display: none !important; }
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Accessibility — kill all ornamental motion on request
+   ═══════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .theme-liquid .live-dot,
+  .theme-liquid .bar-pill .fill::after,
+  .theme-fallout .crt-sweep,
+  .theme-fallout .container,
+  .theme-fallout .f-logo,
+  .theme-fallout .blink {
+    animation: none !important;
+  }
 }

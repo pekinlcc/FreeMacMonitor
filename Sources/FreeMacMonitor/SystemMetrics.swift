@@ -50,18 +50,52 @@ struct MetricsSnapshot: Encodable {
 }
 
 enum SystemMetrics {
-    // Accumulated CPU ticks for delta calculation between samples
-    private static var prevTicks: (user: UInt64, sys: UInt64, idle: UInt64, nice: UInt64) = (0, 0, 0, 0)
+    // A menu-bar monitor samples forever, so the hot path must neither leak
+    // nor re-derive constants:
+    //  - mach_host_self() hands out a new send right on every call and we
+    //    never deallocated them → grab the port once.
+    //  - page size and physical RAM cannot change while we run.
+    private static let host: mach_port_t = mach_host_self()
 
-    static func snapshot() -> MetricsSnapshot {
-        let mem = memoryBreakdown()
+    private static let pageSize: UInt64 = {
+        var ps: vm_size_t = 0
+        host_page_size(host, &ps)
+        return UInt64(ps)
+    }()
+
+    private static let totalMemory: UInt64 = {
+        var memSize: UInt64 = 0
+        var size = MemoryLayout<UInt64>.size
+        sysctlbyname("hw.memsize", &memSize, &size, nil, 0)
+        return memSize
+    }()
+
+    // CPU ticks from the previous sample; nil until the first call primes it,
+    // so the first reading reports 0 instead of a bogus since-boot average.
+    private static var prevTicks: (user: UInt64, sys: UInt64, idle: UInt64, nice: UInt64)?
+
+    // GPU and disk move slowly and cost the most to sample (IOKit property
+    // fetch / statfs), so both sit behind a max-age cache. The controller
+    // relaxes the ages when the panel is closed. Timestamps use systemUptime
+    // (monotonic) so wall-clock changes can't wedge the cache.
+    private static var gpuCache:  (value: Double, at: TimeInterval)?
+    private static var diskCache: (used: UInt64, total: UInt64, at: TimeInterval)?
+    // Accelerator class that answered last time so we skip re-probing:
+    // IOAccelerator covers Intel/AMD, AGXAccelerator covers Apple Silicon.
+    private static var gpuClass: String?
+
+    /// gpuMaxAge / diskMaxAge: return a cached value if it is younger than
+    /// this many seconds; 0 forces a fresh sample.
+    static func snapshot(gpuMaxAge: TimeInterval = 0, diskMaxAge: TimeInterval = 0) -> MetricsSnapshot {
+        let mem  = memoryBreakdown()
+        let disk = diskUsage(maxAge: diskMaxAge)
         return MetricsSnapshot(
             cpu:          cpuUsage(),
             memory:       mem.pressure,
             memBreakdown: mem,
-            gpuUsage:     gpuUsage(),
-            diskUsed:     diskUsed(),
-            diskTotal:    diskTotal()
+            gpuUsage:     gpuUsage(maxAge: gpuMaxAge),
+            diskUsed:     disk.used,
+            diskTotal:    disk.total
         )
     }
 
@@ -74,23 +108,27 @@ enum SystemMetrics {
 
         let kr = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &count)
+                host_statistics(host, HOST_CPU_LOAD_INFO, $0, &count)
             }
         }
         guard kr == KERN_SUCCESS else { return 0 }
 
-        let user = UInt64(info.cpu_ticks.0)
-        let sys  = UInt64(info.cpu_ticks.1)
-        let idle = UInt64(info.cpu_ticks.2)
-        let nice = UInt64(info.cpu_ticks.3)
+        let ticks = (user: UInt64(info.cpu_ticks.0),
+                     sys:  UInt64(info.cpu_ticks.1),
+                     idle: UInt64(info.cpu_ticks.2),
+                     nice: UInt64(info.cpu_ticks.3))
 
-        let dUser = user - prevTicks.user
-        let dSys  = sys  - prevTicks.sys
-        let dIdle = idle - prevTicks.idle
-        let dNice = nice - prevTicks.nice
+        guard let prev = prevTicks else {
+            prevTicks = ticks
+            return 0
+        }
+        prevTicks = ticks
+
+        let dUser = ticks.user - prev.user
+        let dSys  = ticks.sys  - prev.sys
+        let dIdle = ticks.idle - prev.idle
+        let dNice = ticks.nice - prev.nice
         let total = dUser + dSys + dIdle + dNice
-
-        prevTicks = (user, sys, idle, nice)
 
         guard total > 0 else { return 0 }
         return Double(dUser + dSys + dNice) / Double(total) * 100
@@ -99,26 +137,20 @@ enum SystemMetrics {
     // MARK: - Memory
 
     static func memoryBreakdown() -> MemoryBreakdown {
-        var memSize: UInt64 = 0
-        var sizeOfMemSize = MemoryLayout<UInt64>.size
-        sysctlbyname("hw.memsize", &memSize, &sizeOfMemSize, nil, 0)
-
         var stats = vm_statistics64()
         var count = mach_msg_type_number_t(
             MemoryLayout<vm_statistics64_data_t>.size / MemoryLayout<integer_t>.size)
 
         let kr = withUnsafeMutablePointer(to: &stats) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+                host_statistics64(host, HOST_VM_INFO64, $0, &count)
             }
         }
-        guard kr == KERN_SUCCESS, memSize > 0 else {
-            return MemoryBreakdown(total: memSize, app: 0, wired: 0, compressed: 0, cached: 0, free: 0)
+        guard kr == KERN_SUCCESS, totalMemory > 0 else {
+            return MemoryBreakdown(total: totalMemory, app: 0, wired: 0, compressed: 0, cached: 0, free: 0)
         }
 
-        var pageSize: vm_size_t = 0
-        host_page_size(mach_host_self(), &pageSize)
-        let ps = UInt64(pageSize)
+        let ps = pageSize
 
         // Mirror Activity Monitor's definitions.
         // internal_page_count = anonymous (app) pages including purgeable.
@@ -136,7 +168,7 @@ enum SystemMetrics {
         let free   = freeRaw &- min(freeRaw, specBytes)
 
         return MemoryBreakdown(
-            total:      memSize,
+            total:      totalMemory,
             app:        app,
             wired:      wireBytes,
             compressed: compBytes,
@@ -177,11 +209,14 @@ enum SystemMetrics {
                 IOObjectRelease(service)
                 service = IOIteratorNext(iter)
             }
-            var propsRef: Unmanaged<CFMutableDictionary>?
-            guard IORegistryEntryCreateCFProperties(service, &propsRef,
-                                                    kCFAllocatorDefault, 0) == KERN_SUCCESS else { continue }
-            guard let props = propsRef?.takeRetainedValue() as? [String: Any],
-                  let perf  = props["PerformanceStatistics"] as? [String: Any] else { continue }
+            // Fetch just the PerformanceStatistics dictionary instead of the
+            // full property table — this runs every sample, and copying the
+            // whole registry entry is the single most expensive thing the
+            // app used to do.
+            guard let perfRef = IORegistryEntryCreateCFProperty(
+                      service, "PerformanceStatistics" as CFString,
+                      kCFAllocatorDefault, 0),
+                  let perf = perfRef.takeRetainedValue() as? [String: Any] else { continue }
 
             // "Device Utilization %" covers Intel, AMD, and some Apple Silicon configs.
             if let util = numericValue(perf["Device Utilization %"]), util >= 0 {
@@ -203,30 +238,45 @@ enum SystemMetrics {
         return best
     }
 
-    private static func gpuUsage() -> Double {
-        // Intel / AMD path
-        if let util = queryGPUUtil(className: "IOAccelerator") {
-            return util
+    private static func gpuUsage(maxAge: TimeInterval) -> Double {
+        let now = ProcessInfo.processInfo.systemUptime
+        if let cache = gpuCache, maxAge > 0, now - cache.at < maxAge {
+            return cache.value
         }
-        // Apple Silicon (M-series) path
-        if let util = queryGPUUtil(className: "AGXAccelerator") {
-            return util
+
+        var value: Double = -1.0
+        if let cls = gpuClass {
+            value = queryGPUUtil(className: cls) ?? -1.0
+        } else {
+            // Probe order: Intel/AMD first, then Apple Silicon.
+            for cls in ["IOAccelerator", "AGXAccelerator"] {
+                if let util = queryGPUUtil(className: cls) {
+                    gpuClass = cls
+                    value = util
+                    break
+                }
+            }
         }
-        return -1.0
+        gpuCache = (value, now)
+        return value
     }
 
     // MARK: - Disk
 
-    private static func diskUsed() -> UInt64 {
-        var st = statfs()
-        guard statfs("/", &st) == 0 else { return 0 }
-        let bs = UInt64(st.f_bsize)
-        return (UInt64(st.f_blocks) - UInt64(st.f_bfree)) * bs
-    }
+    private static func diskUsage(maxAge: TimeInterval) -> (used: UInt64, total: UInt64) {
+        let now = ProcessInfo.processInfo.systemUptime
+        if let cache = diskCache, maxAge > 0, now - cache.at < maxAge {
+            return (cache.used, cache.total)
+        }
 
-    private static func diskTotal() -> UInt64 {
         var st = statfs()
-        guard statfs("/", &st) == 0 else { return 0 }
-        return UInt64(st.f_blocks) * UInt64(st.f_bsize)
+        guard statfs("/", &st) == 0 else {
+            return (diskCache?.used ?? 0, diskCache?.total ?? 0)
+        }
+        let bs    = UInt64(st.f_bsize)
+        let total = UInt64(st.f_blocks) * bs
+        let used  = (UInt64(st.f_blocks) - UInt64(st.f_bfree)) * bs
+        diskCache = (used, total, now)
+        return (used, total)
     }
 }

@@ -15,12 +15,20 @@ class StatusBarController: NSObject {
     private let gpuAlertThreshold:  Double = 80
     private let diskAlertThreshold: Double = 85
 
-    // Auto-release: trigger when pressure ≥ 98 for `autoReleaseHoldTicks` consecutive samples.
-    // Using (App+Wired+Compressed)/Total (MemoryBreakdown.pressure) avoids false alarms from
-    // legitimately-high cache pages.
+    // Auto-release: trigger when pressure ≥ 98 sustained for `autoReleaseHoldSec`.
+    // Time-based (not tick-based) so the adaptive polling interval below can't
+    // stretch the hold window. Using (App+Wired+Compressed)/Total
+    // (MemoryBreakdown.pressure) avoids false alarms from legitimately-high
+    // cache pages.
     private let autoReleaseTriggerPct:  Double = 98
-    private let autoReleaseHoldTicks:   Int    = 3      // 3 seconds of sustained pressure
+    private let autoReleaseHoldSec:     Double = 3
     private let autoReleaseCooldownSec: Double = 60     // don't retrigger for 60s after a run
+
+    // Adaptive polling: 1 Hz while something is watching (panel open or live
+    // metrics in the menu bar); relaxed when only the alert thresholds need
+    // checking. GPU/disk sampling relaxes further via SystemMetrics max-ages.
+    private let activePollInterval: TimeInterval = 1.0
+    private let idlePollInterval:   TimeInterval = 5.0
 
     // Live-metrics rotation (menu-toggle preference)
     private let showLiveMetricsKey      = "showLiveMetrics"
@@ -34,7 +42,7 @@ class StatusBarController: NSObject {
     private let pipAmber                = NSColor(srgbRed: 1.00, green: 0.82, blue: 0.29, alpha: 1.0)
 
     // Auto-release / animation runtime state
-    private var pressureHighTicks       = 0
+    private var pressureHighSince: Date?
     private var lastReleaseAt: Date?
     private var animationFrames: [(String, NSColor)] = []
     private var animationIndex          = 0
@@ -186,7 +194,7 @@ class StatusBarController: NSObject {
         showLiveMetrics.toggle()
         tickCount = 0
         metricIndex = 0
-        renderStatusBar(SystemMetrics.snapshot())
+        reschedulePolling()      // interval depends on this flag; also renders
     }
 
     @objc private func toggleMemBreakdown() {
@@ -198,7 +206,7 @@ class StatusBarController: NSObject {
         guard let raw = sender.representedObject as? String,
               let mode = AutoReleaseMode(rawValue: raw) else { return }
         autoReleaseMode = mode
-        pressureHighTicks = 0           // reset the hysteresis on mode change
+        pressureHighSince = nil         // reset the hysteresis on mode change
     }
 
     @objc private func setTheme(_ sender: NSMenuItem) {
@@ -252,12 +260,13 @@ class StatusBarController: NSObject {
         applyPanelChromeForTheme()
         p.makeKeyAndOrderFront(nil)
         installClickOutsideMonitor()
-        tick()
+        reschedulePolling()      // panel visible → 1 Hz; also ticks immediately
     }
 
     private func closePanel() {
         removeClickOutsideMonitor()
         panel?.orderOut(nil)
+        reschedulePolling()
     }
 
     private func installClickOutsideMonitor() {
@@ -412,25 +421,46 @@ class StatusBarController: NSObject {
 
     // MARK: - Polling
 
+    // "Active" = something on screen updates every second.
+    private var isActivelyWatched: Bool {
+        (panel?.isVisible == true) || showLiveMetrics
+    }
+
     private func startPolling() {
-        tick()
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        reschedulePolling()
+    }
+
+    // (Re)creates the polling timer at the rate the current UI state needs,
+    // and ticks once immediately so the switch is seamless.
+    private func reschedulePolling() {
+        pollingTimer?.invalidate()
+        let interval = isActivelyWatched ? activePollInterval : idlePollInterval
+        let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             self?.tick()
         }
-        RunLoop.main.add(pollingTimer!, forMode: .common)
+        timer.tolerance = interval * 0.2   // let the system coalesce wakeups
+        RunLoop.main.add(timer, forMode: .common)
+        pollingTimer = timer
+        tick()
     }
 
     private var cachedSnap: MetricsSnapshot?
     private func lastSnapshot() -> MetricsSnapshot? { cachedSnap }
 
     private func tick() {
-        let snap = SystemMetrics.snapshot()
+        // GPU is the priciest probe (IOKit) and disk the most static, so both
+        // ride caches whose freshness depends on whether anyone is looking.
+        let active = isActivelyWatched
+        let snap = SystemMetrics.snapshot(
+            gpuMaxAge:  active ? 0 : idlePollInterval * 3,
+            diskMaxAge: active ? 15 : 60
+        )
         cachedSnap = snap
 
         tickCount += 1
         if tickCount >= rotationSeconds {
             tickCount = 0
-            metricIndex &+= 1
+            metricIndex = (metricIndex + 1) % 720   // 720 = lcm-safe for 3- or 4-metric pools
         }
 
         evaluateAutoRelease(snap)
@@ -455,22 +485,22 @@ class StatusBarController: NSObject {
 
         let pressure = snap.memBreakdown.pressure
         if pressure >= autoReleaseTriggerPct {
-            pressureHighTicks += 1
+            if pressureHighSince == nil { pressureHighSince = Date() }
         } else {
-            pressureHighTicks = 0
+            pressureHighSince = nil
             return
         }
-        guard pressureHighTicks >= autoReleaseHoldTicks else { return }
+        guard let since = pressureHighSince,
+              Date().timeIntervalSince(since) >= autoReleaseHoldSec else { return }
 
+        pressureHighSince = nil
         switch autoReleaseMode {
         case .off:
-            pressureHighTicks = 0
+            break
         case .notify:
-            pressureHighTicks = 0
             lastReleaseAt = Date()
             postPressureNotification(pressure: pressure)
         case .autoPassword, .autoSudoers:
-            pressureHighTicks = 0
             triggerRelease(manual: false)
         }
     }
@@ -608,7 +638,7 @@ class StatusBarController: NSObject {
             return
         }
 
-        let kind  = pool[abs(metricIndex) % pool.count]
+        let kind  = pool[metricIndex % pool.count]
         let text  = formatMetric(kind, snap: snap)
         let color: NSColor = isAlert ? .systemRed : pipGreen
         statusItem.button?.attributedTitle = NSAttributedString(
@@ -651,8 +681,17 @@ class StatusBarController: NSObject {
 
     // MARK: - WebView push
 
+    // Reused across ticks — building these per call is cheap but pointless
+    // on a 1 Hz hot path.
+    private static let metricsEncoder = JSONEncoder()
+    private static let toastTimeFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "HH:mm:ss"
+        return df
+    }()
+
     private func pushMetricsToWebView(_ snap: MetricsSnapshot) {
-        guard let data   = try? JSONEncoder().encode(snap),
+        guard let data   = try? Self.metricsEncoder.encode(snap),
               let jsBody = String(data: data, encoding: .utf8) else { return }
         let showBreak = showMemBreakdown ? "true" : "false"
         let themeStr  = theme.rawValue
@@ -665,8 +704,7 @@ class StatusBarController: NSObject {
     }
 
     private func pushReleaseToastToWebView(bytes: UInt64, at: Date) {
-        let df = DateFormatter()
-        df.dateFormat = "HH:mm:ss"
+        let df = Self.toastTimeFormatter
         let mb = Double(bytes) / (1024 * 1024)
         let msg: String
         if mb >= 1024 { msg = String(format: "%.1f GB", mb / 1024) }

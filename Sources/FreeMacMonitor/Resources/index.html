@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="theme-liquid">
+  <div class="crt-sweep only-fallout"></div>
   <div class="container">
 
     <!-- Fallout-only header -->
@@ -20,7 +21,7 @@
 
     <!-- Liquid-only header -->
     <div class="l-header only-liquid">
-      <span class="l-title">System Monitor</span>
+      <span class="l-title"><span class="live-dot"></span>System Monitor</span>
       <span class="l-time" id="l-time">--:--:--</span>
     </div>
 
@@ -29,7 +30,7 @@
     <div class="metrics">
 
       <!-- CPU -->
-      <div class="metric">
+      <div class="metric m-cpu" id="metric-cpu">
         <div class="metric-top">
           <span class="metric-name"><span class="only-fallout">CPU</span><span class="only-liquid">CPU</span></span>
           <span class="metric-pct" id="cpu-pct">--- %</span>
@@ -39,7 +40,7 @@
       </div>
 
       <!-- MEMORY -->
-      <div class="metric" id="metric-memory">
+      <div class="metric m-mem" id="metric-memory">
         <div class="metric-top">
           <span class="metric-name">MEMORY</span>
           <span class="metric-pct" id="mem-pct">--- %</span>
@@ -68,7 +69,7 @@
       </div>
 
       <!-- GPU -->
-      <div class="metric">
+      <div class="metric m-gpu" id="metric-gpu">
         <div class="metric-top">
           <span class="metric-name">GPU</span>
           <span class="metric-pct" id="gpu-pct">--- %</span>
@@ -78,7 +79,7 @@
       </div>
 
       <!-- DISK -->
-      <div class="metric">
+      <div class="metric m-disk" id="metric-disk">
         <div class="metric-top">
           <span class="metric-name">DISK</span>
           <span class="metric-pct" id="disk-pct">--- %</span>

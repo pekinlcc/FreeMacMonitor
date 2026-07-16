@@ -20,18 +20,30 @@ function pctSeverity(pct) {
   return pct >= 90 ? 'crit' : (pct >= 70 ? 'warn' : 'lit');
 }
 
-/* ASCII bar for Fallout theme: 20 segments of ▓/░ coloured by severity. */
+/* ASCII bar for Fallout theme: 20 segments of ▓/░ coloured by severity,
+   capped with dim terminal-style brackets. */
 function renderAsciiBar(el, pct) {
   if (!el) return;
   var segs = SEGMENTS;
   var filled  = Math.max(0, Math.min(segs, Math.round((pct / 100) * segs)));
   var empty   = segs - filled;
   var cls = pctSeverity(pct);
-  var bar = '<span class="' + cls + '">';
+  var bar = '<span class="brk">[</span><span class="' + cls + '">';
   for (var i = 0; i < filled; i++) bar += '▓';
   bar += '</span>';
   for (var j = 0; j < empty; j++) bar += '░';
+  bar += '<span class="brk">]</span>';
   el.innerHTML = bar;
+}
+
+/* Mirror bar severity onto the metric container so the % number (and any
+   other chrome) can follow the colour. */
+function setMetricSeverity(id, pct) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('warn', 'crit');
+  if (pct >= 90)      el.classList.add('crit');
+  else if (pct >= 70) el.classList.add('warn');
 }
 
 /* Pill-bar fill for Liquid Glass theme. kind = cpu/mem/gpu/disk.
@@ -69,13 +81,14 @@ function renderMemAscii(el, mem) {
   if (!el) return;
   var segs = allocateSegments(mem, SEGMENTS);
   var keys = ['app', 'wire', 'comp', 'cach', 'free'];
-  var html = '';
+  var html = '<span class="brk">[</span>';
   for (var i = 0; i < 5; i++) {
     if (segs[i] <= 0) continue;
     html += '<span class="' + keys[i] + '">';
     for (var c = 0; c < segs[i]; c++) html += '▓';
     html += '</span>';
   }
+  html += '<span class="brk">]</span>';
   el.innerHTML = html;
 }
 
@@ -129,6 +142,7 @@ window.updateMetrics = function(data, opts) {
   var cpu = typeof data.cpu === 'number' ? data.cpu : 0;
   renderAsciiBar(document.getElementById('cpu-bar'), cpu);
   renderPillBar(document.getElementById('cpu-pill'), cpu, 'cpu');
+  setMetricSeverity('metric-cpu', cpu);
   var cpuPct = document.getElementById('cpu-pct');
   if (cpuPct) cpuPct.textContent = cpu.toFixed(1) + ' %';
 
@@ -136,6 +150,7 @@ window.updateMetrics = function(data, opts) {
   var mem = typeof data.memory === 'number' ? data.memory : 0;
   renderAsciiBar(document.getElementById('mem-bar'), mem);
   renderPillBar(document.getElementById('mem-pill'), mem, 'mem');
+  setMetricSeverity('metric-memory', mem);
   var memPct = document.getElementById('mem-pct');
   if (memPct) memPct.textContent = mem.toFixed(1) + ' %';
 
@@ -164,9 +179,11 @@ window.updateMetrics = function(data, opts) {
     if (gpuBar)  gpuBar.innerHTML  = '<span style="color:#1a5500;font-size:11px">N/A — NO GPU DATA</span>';
     if (gpuPill) gpuPill.style.width = '0%';
     if (gpuPct)  gpuPct.textContent = 'N/A';
+    setMetricSeverity('metric-gpu', 0);
   } else {
     renderAsciiBar(gpuBar, gpu);
     renderPillBar (gpuPill, gpu, 'gpu');
+    setMetricSeverity('metric-gpu', gpu);
     if (gpuPct) gpuPct.textContent = gpu.toFixed(1) + ' %';
   }
 
@@ -176,13 +193,14 @@ window.updateMetrics = function(data, opts) {
   var diskTotal  = typeof data.diskTotal   === 'number' ? data.diskTotal   : 0;
   renderAsciiBar(document.getElementById('disk-bar'), diskPct);
   renderPillBar (document.getElementById('disk-pill'), diskPct, 'disk');
+  setMetricSeverity('metric-disk', diskPct);
   var diskPctEl  = document.getElementById('disk-pct');
   var diskDetail = document.getElementById('disk-detail');
   if (diskPctEl)  diskPctEl.textContent = diskPct.toFixed(1) + ' %';
   if (diskDetail) diskDetail.textContent = fmtBytes(diskUsed) + ' / ' + fmtBytes(diskTotal);
 
   // Status (both themes read this; CSS styles diverge via body class)
-  var highest = Math.max(cpu, mem, diskPct);
+  var highest = Math.max(cpu, mem, diskPct, gpu >= 0 ? gpu : 0);
   var statusText, statusClass;
   if      (highest >= 90) { statusText = 'CRITICAL'; statusClass = 'crit'; }
   else if (highest >= 70) { statusText = 'ELEVATED'; statusClass = 'warn'; }
