@@ -175,7 +175,10 @@ class StatusBarController: NSObject {
 
         let autoItem = NSMenuItem(title: "Auto-Release Memory", action: nil, keyEquivalent: "")
         let autoSub  = NSMenu(title: "Auto-Release Memory")
-        for mode in [AutoReleaseMode.notify, .autoPassword, .autoSudoers, .off] {
+        // Password prompts must be initiated by an explicit user action.  An
+        // automatic trigger may use a pre-authorised sudoers rule, or simply
+        // notify; it must never repeatedly raise a credential dialog.
+        for mode in [AutoReleaseMode.notify, .autoSudoers, .off] {
             let it = NSMenuItem(title: mode.menuTitle, action: #selector(setAutoReleaseMode(_:)), keyEquivalent: "")
             it.target = self
             it.state  = (autoReleaseMode == mode) ? .on : .off
@@ -185,8 +188,14 @@ class StatusBarController: NSObject {
         autoItem.submenu = autoSub
         menu.addItem(autoItem)
 
+        // In Off / Notify / autoPassword modes the manual action falls back to
+        // the password-based `purge`, so say so up front instead of surprising
+        // the user with an admin dialog.
+        let releaseNowTitle = autoReleaseMode == .autoSudoers
+            ? "Release Memory Now…"
+            : "Release Memory Now… (asks for password)"
         let releaseNowItem = NSMenuItem(
-            title: "Release Memory Now…",
+            title: releaseNowTitle,
             action: #selector(releaseNow),
             keyEquivalent: "r"
         )
@@ -322,10 +331,14 @@ class StatusBarController: NSObject {
             let btnScreenRect = btnWindow.convertToScreen(btn.frame)
             let pw: CGFloat = 320
             let ph: CGFloat = 460      // breakdown-on needs ≈420; 460 gives a calm bottom margin
-            let x = (btnScreenRect.midX - pw / 2).rounded()
-            let y = (btnScreenRect.minY - ph).rounded()
+            let origin = clampedPanelOrigin(
+                x: (btnScreenRect.midX - pw / 2).rounded(),
+                y: (btnScreenRect.minY - ph).rounded(),
+                w: pw, h: ph,
+                screen: btnWindow.screen
+            )
             p.setContentSize(NSSize(width: pw, height: ph))
-            p.setFrameOrigin(NSPoint(x: x, y: y))
+            p.setFrameOrigin(origin)
         }
 
         applyPanelChromeForTheme()
@@ -333,6 +346,21 @@ class StatusBarController: NSObject {
         installClickOutsideMonitor()
         setWebClockRunning(true)
         reschedulePolling()      // panel visible → 1 Hz; also ticks immediately
+    }
+
+    // Keep the panel fully on the visible desktop (below the menu bar, above
+    // the Dock, inside the screen edges) no matter where the status item sits
+    // — a status item at the left edge or a short display would otherwise put
+    // part of the panel off-screen.
+    private func clampedPanelOrigin(x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat,
+                                    screen: NSScreen?) -> NSPoint {
+        guard let vf = screen?.visibleFrame else { return NSPoint(x: x, y: y) }
+        let margin: CGFloat = 8
+        let minX = vf.minX + margin
+        let maxX = max(minX, vf.maxX - w - margin)
+        let minY = vf.minY + margin
+        let maxY = max(minY, vf.maxY - h - margin)
+        return NSPoint(x: min(max(x, minX), maxX), y: min(max(y, minY), maxY))
     }
 
     private func closePanel() {
@@ -542,7 +570,7 @@ class StatusBarController: NSObject {
         tickCount += 1
         if tickCount >= rotationSeconds {
             tickCount = 0
-            metricIndex = (metricIndex + 1) % 720   // 720 = lcm-safe for 3- or 4-metric pools
+            metricIndex += 1    // renderStatusBar applies % pool.count
         }
 
         evaluateAutoRelease(snap)
@@ -582,8 +610,13 @@ class StatusBarController: NSObject {
         case .notify:
             lastReleaseAt = Date()
             postPressureNotification(pressure: pressure)
-        case .autoPassword, .autoSudoers:
+        case .autoSudoers:
             triggerRelease(manual: false)
+        case .autoPassword:
+            // Migrate the old option safely: background cleanup with a
+            // password dialog is disruptive and can loop under pressure.
+            lastReleaseAt = Date()
+            postPressureNotification(pressure: pressure)
         }
     }
 
@@ -618,8 +651,8 @@ class StatusBarController: NSObject {
             self.lastReleaseResult = (result.bytesReleased, delta, Date())
             self.finishCleanupAnimation(deltaPct: delta, success: result.success)
 
-            if let err = result.errorMessage, !result.success, err != "cancelled" {
-                self.postErrorNotification(err, mode: runningMode)
+            if case .failure(let message) = result.outcome {
+                self.postErrorNotification(message, mode: runningMode)
             }
         }
     }

@@ -52,7 +52,7 @@ If you prefer building from source, see [Build & run](#build--run) below.
   When a threshold is breached the rotation locks onto the offending metric and turns red, so you see the problem within one cycle.
 - **Expanding panel** — left-click to open a 320 × 460 dashboard with live bar charts. Click anywhere outside to collapse.
 - **Memory breakdown** *(v1.1)* — toggle **Show Memory Breakdown** and the memory bar becomes a 5-colour stacked chart (App / Wired / Compressed / Cached / Free), matching Activity Monitor's categories. Legend renders as a 5-row grid with GB values per category, never wraps.
-- **Auto-release at high pressure** *(v1.1)* — when (App + Wired + Compressed) / Total ≥ 98 % for 3 consecutive seconds, optionally fire `/usr/sbin/purge` and show a live status-bar animation (`[FLUSH ▓▓▓▓] → MEM 82% ▼16`) with the real measured reduction. Three modes (right-click → **Auto-Release Memory**): Notify only / Auto-run with password prompt / Auto-run with a pre-set sudoers rule. `⌘R` from the menu triggers a one-shot release manually.
+- **Auto-release at high pressure** *(v1.1)* — when (App + Wired + Compressed) / Total ≥ 98 % for 3 consecutive seconds, optionally fire `/usr/sbin/purge` and show a live status-bar animation (`[FLUSH ▓▓▓▓] → MEM 82% ▼16`) with the real measured reduction. Auto modes (right-click → **Auto-Release Memory**): Notify only / Auto-run with a pre-set sudoers rule / Off. The password-prompt purge is manual-only — it needs an explicit user action, so it never pops an admin dialog from the background. `⌘R` from the menu triggers a one-shot release manually.
 - **Adaptive polling** *(v1.3)* — 1 Hz while the panel is open or Live Metrics is on; relaxed to 0.2 Hz (with GPU/disk sampled even less often) when only the alert thresholds need watching. Timer tolerance lets macOS coalesce wakeups, so the monitor itself stays near-zero cost.
 - **Configurable alert thresholds** *(v1.4)* — right-click → **Alert Thresholds ▸** to pick the per-metric percentage that turns the icon red (defaults: CPU/MEM/GPU 80 %, Disk 85 %).
 - **Launch at Login** *(v1.4)* — one menu toggle, implemented with `SMAppService` (no helper app, no LaunchAgent plist).
@@ -85,7 +85,7 @@ xattr -cr "Free Mac Monitor.app" && open "Free Mac Monitor.app"
 | Show Live Metrics | Toggles the rotating readout in the menu bar. |
 | Show Memory Breakdown | Switches the MEMORY row to a 5-colour stacked chart + legend. |
 | Theme ▸ | Sub-menu: Liquid Glass (default) · Fallout Terminal. |
-| Auto-Release Memory ▸ | Sub-menu: Notify only · Auto-run prompt password · Auto-run sudoers-free · Off. |
+| Auto-Release Memory ▸ | Sub-menu: Notify only · Auto-run sudoers-free · Off. |
 | Release Memory Now… ⌘R | One-shot manual purge (prompts for password unless sudoers is set up). |
 | Alert Thresholds ▸ | Per-metric red-alert percentage (CPU / Memory / GPU / Disk). |
 | Launch at Login | Registers/unregisters the app as a login item via `SMAppService`. |
@@ -96,11 +96,10 @@ Left-click opens / closes the dashboard panel.
 
 ### Auto-release modes
 
-`/usr/sbin/purge` is the only honest mechanism macOS offers for explicit memory release — typically it frees 0.2–1 GB of disk cache — and it requires `root`. The three Auto-Release modes trade off between friction and automation:
+`/usr/sbin/purge` is the only honest mechanism macOS offers for explicit memory release — typically it frees 0.2–1 GB of disk cache — and it requires `root`. The auto modes trade off between friction and automation:
 
 1. **Notify only** *(default)* — On sustained 98 % pressure the app posts a macOS notification. You stay in control; no command runs automatically.
-2. **Auto-run — prompt password** — The app fires `osascript` with `do shell script "/usr/sbin/purge" with administrator privileges`, which shows the standard admin password dialog each time.
-3. **Auto-run — sudoers-free** — The app runs `sudo -n /usr/sbin/purge`. This requires a one-time sudoers rule so that no password is needed:
+2. **Auto-run — sudoers-free** — The app runs `sudo -n /usr/sbin/purge`. This requires a one-time sudoers rule so that no password is needed:
 
    ```bash
    # Run once; replace $USER with your login
@@ -109,7 +108,11 @@ Left-click opens / closes the dashboard panel.
    sudo chmod 440 /etc/sudoers.d/free-mac-monitor-purge
    ```
 
-Cooldown between triggers is 60 seconds; the status-bar animation shows the measured drop (`▼N`). If nothing actually got released, the app honestly displays `▼0`.
+3. **Off** — nothing happens automatically.
+
+The password-prompt purge (`osascript … with administrator privileges`) is **manual-only**: it is used for **Release Memory Now…**, never from the background, because an automatic trigger raising a credential dialog is disruptive and can loop under pressure. Manual triggers are one-shot regardless of the selected auto mode.
+
+Cooldown between triggers is 60 seconds; the status-bar animation shows the measured drop (`▼N`). The delta measures the change in *total used* (App + Wired + Compressed + Cached) — `purge` frees file-backed cache, so measuring only the pressure buckets would always show `▼0` even after freeing gigabytes. If nothing actually got released, the app honestly displays `▼0`.
 
 ### Alert thresholds
 
@@ -205,7 +208,7 @@ Info.plist                  — LSUIElement, CFBundleIconFile, identifiers
   当某项指标触发阈值时，滚动会锁定在该指标并显示为红色，一个循环内就能看到问题。
 - **展开面板** —— 左键点击可打开 320 × 460 仪表盘，内含实时柱状图。点击外部任意位置即可收起。
 - **内存分类展示** *（v1.1）* —— 勾选 **Show Memory Breakdown** 后，内存柱会变成 5 色 stacked 条（App / Wired / Compressed / Cached / Free），与 Activity Monitor 的分类一致。图例以 5 行栅格呈现，每行"色块 · 名称 · GB 数值"，永不换行。
-- **高压自动清理** *（v1.1）* —— 当 (App + Wired + Compressed) / 总内存 ≥ 98 % 持续 3 秒时，可选地调用 `/usr/sbin/purge` 并在菜单栏播放动画（`[FLUSH ▓▓▓▓] → MEM 82% ▼16`），`▼N` 是实测下降百分点。三种策略（右键 → **Auto-Release Memory**）：仅通知 / 自动运行（弹密码） / 自动运行（免密码 sudoers）。`⌘R` 立即手动触发一次清理。
+- **高压自动清理** *（v1.1）* —— 当 (App + Wired + Compressed) / 总内存 ≥ 98 % 持续 3 秒时，可选地调用 `/usr/sbin/purge` 并在菜单栏播放动画（`[FLUSH ▓▓▓▓] → MEM 82% ▼16`），`▼N` 是实测下降百分点。自动模式（右键 → **Auto-Release Memory**）：仅通知 / 自动运行（免密码 sudoers）/ 关闭。弹密码的清理**只用于手动触发**——密码框必须由用户显式动作发起，后台绝不会自动弹窗。`⌘R` 立即手动触发一次清理。
 - **自适应轮询** *（v1.3）* —— 面板打开或开启实时指标时 1 Hz 采样；仅需检查告警阈值时降到 0.2 Hz（GPU / 磁盘采样频率更低），并设置 timer tolerance 让系统合并唤醒 —— 监控工具本身几乎不耗电。
 - **可配置告警阈值** *（v1.4）* —— 右键 → **Alert Thresholds ▸** 按指标选择变红阈值（默认 CPU/内存/GPU 80 %，磁盘 85 %）。
 - **登录自启动** *（v1.4）* —— 菜单一键开关，基于 `SMAppService` 实现（无 helper、无 LaunchAgent plist）。
@@ -238,7 +241,7 @@ xattr -cr "Free Mac Monitor.app" && open "Free Mac Monitor.app"
 | Show Live Metrics | 切换菜单栏中的滚动读数显示。 |
 | Show Memory Breakdown | 将 MEMORY 行切换为 5 色 stacked 柱 + 图例。 |
 | Theme ▸ | 子菜单：Liquid Glass（默认） · Fallout Terminal。 |
-| Auto-Release Memory ▸ | 子菜单：仅通知 · 自动运行弹密码 · 自动运行免密码 · 关闭。 |
+| Auto-Release Memory ▸ | 子菜单：仅通知 · 自动运行免密码 · 关闭。 |
 | Release Memory Now… ⌘R | 立即手动跑一次 purge（未配置 sudoers 免密码则弹管理员密码）。 |
 | Alert Thresholds ▸ | 按指标设置变红的告警阈值（CPU / 内存 / GPU / 磁盘）。 |
 | Launch at Login | 通过 `SMAppService` 注册 / 取消登录自启动。 |
@@ -247,13 +250,12 @@ xattr -cr "Free Mac Monitor.app" && open "Free Mac Monitor.app"
 
 左键点击可展开 / 收起仪表盘面板。
 
-### 自动清理的三种模式
+### 自动清理模式
 
-macOS 上唯一诚实的显式内存释放机制是 `/usr/sbin/purge`（通常释放 0.2–1 GB 的磁盘缓存），它需要 `root` 权限。三种模式在易用性和自动化程度之间做取舍：
+macOS 上唯一诚实的显式内存释放机制是 `/usr/sbin/purge`（通常释放 0.2–1 GB 的磁盘缓存），它需要 `root` 权限。自动模式在易用性和自动化程度之间做取舍：
 
 1. **仅通知**（默认）—— 98% 持续压力时只发送 macOS 原生通知，不会自动执行任何命令。
-2. **自动运行（弹密码）** —— 通过 `osascript` 用 `do shell script "/usr/sbin/purge" with administrator privileges` 触发，每次会弹出管理员密码输入框。
-3. **自动运行（免密码 sudoers）** —— 通过 `sudo -n /usr/sbin/purge` 触发。需要一次性配置 sudoers 规则：
+2. **自动运行（免密码 sudoers）** —— 通过 `sudo -n /usr/sbin/purge` 触发。需要一次性配置 sudoers 规则：
 
    ```bash
    # 只需执行一次；把 $USER 替换成你的登录名
@@ -262,7 +264,11 @@ macOS 上唯一诚实的显式内存释放机制是 `/usr/sbin/purge`（通常�
    sudo chmod 440 /etc/sudoers.d/free-mac-monitor-purge
    ```
 
-触发之间有 60 秒冷却，状态栏动画里的 `▼N` 是实测下降百分点 —— 实际没释放出来就显示 `▼0`，不会造假。
+3. **关闭** —— 不自动执行任何操作。
+
+弹密码的 purge（`osascript … with administrator privileges`）**仅限手动**：只有 **Release Memory Now…** 会用到它，后台自动触发绝不弹凭据框——后台反复弹密码既打扰人又可能在高压下形成循环。手动触发不受所选自动模式限制，随时可用。
+
+触发之间有 60 秒冷却，状态栏动画里的 `▼N` 是实测下降百分点。下降量按**总占用**（App + Wired + Compressed + Cached）的前后差值计算——`purge` 释放的是文件缓存（Cached），若只按压力桶计算，即使释放了几个 GB 也会显示 `▼0`。实际没释放出来就显示 `▼0`，不会造假。
 
 ### 预警阈值
 

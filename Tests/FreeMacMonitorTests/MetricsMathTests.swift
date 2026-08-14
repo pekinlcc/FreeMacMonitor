@@ -18,23 +18,89 @@ final class MetricsMathTests: XCTestCase {
         XCTAssertEqual(mb.headroom, 0)
     }
 
+    // MARK: - normalizedBreakdown (raw VM counters → display buckets)
+
+    func testNormalizedBreakdownSumsToTotal() {
+        let mb = SystemMetrics.normalizedBreakdown(
+            total: 1000, rawApp: 300, rawWired: 100, rawCompressed: 100, rawCached: 200)
+        XCTAssertEqual(mb.total, 1000)
+        XCTAssertEqual(mb.app + mb.wired + mb.compressed + mb.cached + mb.free, 1000)
+        XCTAssertEqual(mb.app, 300)
+        XCTAssertEqual(mb.wired, 100)
+        XCTAssertEqual(mb.compressed, 100)
+        XCTAssertEqual(mb.cached, 200)
+        XCTAssertEqual(mb.free, 300)
+    }
+
+    func testNormalizedBreakdownCapsOverlappingCounters() {
+        // Counters overlap (cached pages also counted elsewhere): raw buckets
+        // can sum well beyond physical RAM.  Non-reclaimable buckets are
+        // reserved first, cache is capped, and the residual lands in `free`.
+        let mb = SystemMetrics.normalizedBreakdown(
+            total: 100, rawApp: 90, rawWired: 30, rawCompressed: 20, rawCached: 60)
+        XCTAssertEqual(mb.app + mb.wired + mb.compressed + mb.cached + mb.free, 100)
+        XCTAssertEqual(mb.app, 90)
+        XCTAssertEqual(mb.wired, 10)        // only 10 left after app
+        XCTAssertEqual(mb.compressed, 0)    // nothing left after wired
+        XCTAssertEqual(mb.cached, 0)
+        XCTAssertEqual(mb.free, 0)
+    }
+
+    func testNormalizedBreakdownRawAppBeyondTotal() {
+        // Degenerate input must never produce a bucket larger than RAM.
+        let mb = SystemMetrics.normalizedBreakdown(
+            total: 100, rawApp: 500, rawWired: 1, rawCompressed: 1, rawCached: 1)
+        XCTAssertEqual(mb.app, 100)
+        XCTAssertEqual(mb.wired, 0)
+        XCTAssertEqual(mb.compressed, 0)
+        XCTAssertEqual(mb.cached, 0)
+        XCTAssertEqual(mb.free, 0)
+    }
+
+    func testNormalizedBreakdownZeroTotal() {
+        let mb = SystemMetrics.normalizedBreakdown(
+            total: 0, rawApp: 10, rawWired: 10, rawCompressed: 10, rawCached: 10)
+        XCTAssertEqual(mb.total, 0)
+        XCTAssertEqual(mb.app + mb.wired + mb.compressed + mb.cached + mb.free, 0)
+        XCTAssertEqual(mb.pressure, 0)
+    }
+
     // MARK: - ReleaseResult
 
     func testReleaseResultDelta() {
-        let r = ReleaseResult(beforeBytes: 800, afterBytes: 600, success: true, errorMessage: nil)
+        let r = ReleaseResult(beforeBytes: 800, afterBytes: 600, outcome: .success)
         XCTAssertEqual(r.bytesReleased, 200)
         XCTAssertEqual(r.delta(total: 1000), 20.0, accuracy: 0.0001)
+        XCTAssertTrue(r.success)
+        XCTAssertFalse(r.cancelled)
+        XCTAssertNil(r.errorMessage)
     }
 
     func testReleaseResultClampsWhenUsageGrewDuringPurge() {
-        let r = ReleaseResult(beforeBytes: 500, afterBytes: 600, success: true, errorMessage: nil)
+        let r = ReleaseResult(beforeBytes: 500, afterBytes: 600, outcome: .success)
         XCTAssertEqual(r.bytesReleased, 0)
         XCTAssertEqual(r.delta(total: 1000), 0)
     }
 
     func testReleaseResultZeroTotal() {
-        let r = ReleaseResult(beforeBytes: 800, afterBytes: 600, success: true, errorMessage: nil)
+        let r = ReleaseResult(beforeBytes: 800, afterBytes: 600, outcome: .success)
         XCTAssertEqual(r.delta(total: 0), 0)
+    }
+
+    func testReleaseResultCancelled() {
+        let r = ReleaseResult(beforeBytes: 800, afterBytes: 600, outcome: .cancelled)
+        XCTAssertFalse(r.success)
+        XCTAssertTrue(r.cancelled)
+        XCTAssertEqual(r.errorMessage, "cancelled")
+    }
+
+    func testReleaseResultFailure() {
+        let r = ReleaseResult(
+            beforeBytes: 800, afterBytes: 600,
+            outcome: .failure("sudo: a password is required"))
+        XCTAssertFalse(r.success)
+        XCTAssertFalse(r.cancelled)
+        XCTAssertEqual(r.errorMessage, "sudo: a password is required")
     }
 
     // MARK: - MetricsSnapshot

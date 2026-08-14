@@ -5,8 +5,8 @@ import Foundation
 // without an Apple Developer cert or a privileged helper:
 //
 //   .notify       → don't run purge; the caller posts a user notification
-//   .autoPassword → `osascript … do shell script "purge" with administrator privileges`
-//                    prompts for admin password each time
+//   .autoPassword → used only for an explicit “Release now” action; it can
+//                    prompt for an admin password, never from the background
 //   .autoSudoers  → `sudo -n /usr/sbin/purge`, requires a pre-installed sudoers
 //                    rule (see README). Falls back to failure if rule absent.
 //
@@ -23,19 +23,45 @@ enum AutoReleaseMode: String {
         switch self {
         case .off:          return "Off"
         case .notify:       return "Notify only (recommended)"
-        case .autoPassword: return "Auto-run — prompt password"
+        case .autoPassword: return "Run manually — prompt password"
         case .autoSudoers:  return "Auto-run — sudoers-free"
         }
     }
 }
 
+enum ReleaseOutcome: Equatable {
+    case success
+    case cancelled          // user dismissed the admin password dialog
+    case failure(String)
+}
+
 struct ReleaseResult {
     let beforeBytes: UInt64
     let afterBytes:  UInt64
-    let success:     Bool
-    let errorMessage: String?
+    let outcome:     ReleaseOutcome
 
-    // Percentage-point drop in pressure (before% − after%), clamped ≥ 0.
+    var success: Bool {
+        if case .success = outcome { return true }
+        return false
+    }
+
+    var cancelled: Bool {
+        if case .cancelled = outcome { return true }
+        return false
+    }
+
+    var errorMessage: String? {
+        switch outcome {
+        case .success:        return nil
+        case .cancelled:      return "cancelled"
+        case .failure(let m): return m
+        }
+    }
+
+    // Percentage-point drop in total used (App+Wired+Compressed+Cached) over
+    // physical RAM, clamped ≥ 0.  `purge` reclaims file-backed cache, which
+    // lives in the Cached bucket — measuring only the pressure buckets here
+    // would report "▼0" even after freeing gigabytes.
     func delta(total: UInt64) -> Double {
         guard total > 0, beforeBytes >= afterBytes else { return 0 }
         return Double(beforeBytes - afterBytes) / Double(total) * 100
@@ -51,41 +77,37 @@ enum MemoryReleaser {
     static func release(mode: AutoReleaseMode, completion: @escaping (ReleaseResult) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             let before = SystemMetrics.memoryBreakdown()
-            let beforeUsed = before.app + before.wired + before.compressed
 
-            var ok = false
-            var err: String? = nil
-
+            let outcome: ReleaseOutcome
             switch mode {
             case .off, .notify:
                 // Caller shouldn't have called us in these modes, but be safe.
-                err = "release suppressed by mode \(mode.rawValue)"
+                outcome = .failure("release suppressed by mode \(mode.rawValue)")
             case .autoPassword:
-                (ok, err) = runViaAppleScript()
+                outcome = runViaAppleScript()
             case .autoSudoers:
-                (ok, err) = runViaSudo()
+                outcome = runViaSudo()
             }
 
             // Re-sample *after* purge completes.  Purge on recent macOS typically
-            // runs <1s but the VM stats can lag slightly; a small delay makes the
-            // delta more honest without blocking the UI.
-            Thread.sleep(forTimeInterval: 0.4)
-            let after = SystemMetrics.memoryBreakdown()
-            let afterUsed = after.app + after.wired + after.compressed
-
-            let result = ReleaseResult(
-                beforeBytes: beforeUsed,
-                afterBytes:  afterUsed,
-                success:     ok,
-                errorMessage: err
-            )
-            DispatchQueue.main.async { completion(result) }
+            // runs <1s but the VM stats can lag slightly; a short delay makes the
+            // delta more honest without blocking the UI.  asyncAfter (not
+            // Thread.sleep) keeps the GCD worker available in the meantime.
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.4) {
+                let after = SystemMetrics.memoryBreakdown()
+                let result = ReleaseResult(
+                    beforeBytes: before.used,
+                    afterBytes:  after.used,
+                    outcome:     outcome
+                )
+                DispatchQueue.main.async { completion(result) }
+            }
         }
     }
 
     // MARK: - Backends
 
-    private static func runViaAppleScript() -> (Bool, String?) {
+    private static func runViaAppleScript() -> ReleaseOutcome {
         let src = "do shell script \"/usr/sbin/purge\" with administrator privileges"
         var err: NSDictionary?
         let script = NSAppleScript(source: src)
@@ -93,14 +115,14 @@ enum MemoryReleaser {
         if let err = err {
             let code = err[NSAppleScript.errorNumber] as? Int ?? -1
             // -128 = user cancelled the authentication dialog.
-            if code == -128 { return (false, "cancelled") }
+            if code == -128 { return .cancelled }
             let msg = err[NSAppleScript.errorMessage] as? String ?? "script error \(code)"
-            return (false, msg)
+            return .failure(msg)
         }
-        return (true, nil)
+        return .success
     }
 
-    private static func runViaSudo() -> (Bool, String?) {
+    private static func runViaSudo() -> ReleaseOutcome {
         let task = Process()
         task.launchPath = "/usr/bin/sudo"
         task.arguments  = ["-n", "/usr/sbin/purge"]      // -n = never prompt
@@ -111,14 +133,14 @@ enum MemoryReleaser {
             try task.run()
             task.waitUntilExit()
         } catch {
-            return (false, error.localizedDescription)
+            return .failure(error.localizedDescription)
         }
-        if task.terminationStatus == 0 { return (true, nil) }
+        if task.terminationStatus == 0 { return .success }
         let stderr = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(),
                             encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         // Typical stderr when no NOPASSWD rule exists:
         //   "sudo: a password is required"
-        return (false, stderr.isEmpty ? "sudo exited \(task.terminationStatus)" : stderr)
+        return .failure(stderr.isEmpty ? "sudo exited \(task.terminationStatus)" : stderr)
     }
 }

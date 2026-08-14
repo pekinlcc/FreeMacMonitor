@@ -147,7 +147,7 @@ enum SystemMetrics {
             }
         }
         guard kr == KERN_SUCCESS, totalMemory > 0 else {
-            return MemoryBreakdown(total: totalMemory, app: 0, wired: 0, compressed: 0, cached: 0, free: 0)
+            return MemoryBreakdown(total: 0, app: 0, wired: 0, compressed: 0, cached: 0, free: 0)
         }
 
         let ps = pageSize
@@ -160,18 +160,56 @@ enum SystemMetrics {
         let purgeableBytes  = UInt64(stats.purgeable_count)          * ps
         let wireBytes       = UInt64(stats.wire_count)               * ps
         let compBytes       = UInt64(stats.compressor_page_count)    * ps
-        let freeRaw         = UInt64(stats.free_count)               * ps
-        let specBytes       = UInt64(stats.speculative_count)        * ps
+        let rawApp    = internalBytes &- min(internalBytes, purgeableBytes)
+        let rawCached = externalBytes &+ purgeableBytes
 
-        let app    = internalBytes &- min(internalBytes, purgeableBytes)
-        let cached = externalBytes &+ purgeableBytes
-        let free   = freeRaw &- min(freeRaw, specBytes)
+        return normalizedBreakdown(
+            total:          totalMemory,
+            rawApp:         rawApp,
+            rawWired:       wireBytes,
+            rawCompressed:  compBytes,
+            rawCached:      rawCached
+        )
+    }
+
+    /// Normalize raw VM counters into a display breakdown whose five buckets
+    /// always add up to `total` (physical RAM).  Pure function — unit-tested,
+    /// kept separate from the mach sampling so the math can be verified.
+    ///
+    /// VM counters are not a set of disjoint buckets on every macOS release:
+    /// a page can be reported in both a cache-related counter and another
+    /// category while it moves through the compressor.  Never let the visual
+    /// breakdown claim more RAM than the machine has: reserve the
+    /// non-reclaimable buckets first, cap cache to the remaining RAM, and
+    /// make Free the exact residual.
+    static func normalizedBreakdown(
+        total: UInt64,
+        rawApp: UInt64,
+        rawWired: UInt64,
+        rawCompressed: UInt64,
+        rawCached: UInt64
+    ) -> MemoryBreakdown {
+        guard total > 0 else {
+            return MemoryBreakdown(total: 0, app: 0, wired: 0, compressed: 0, cached: 0, free: 0)
+        }
+
+        let app = min(rawApp, total)
+        let afterApp = total - app
+        let wired = min(rawWired, afterApp)
+        let afterWired = afterApp - wired
+        let compressed = min(rawCompressed, afterWired)
+        let remaining = afterWired - compressed
+        let cached = min(rawCached, remaining)
+        // `free` is deliberately the exact residual: accounting gaps (for
+        // example speculative pages) land here rather than letting the
+        // displayed total drift below physical RAM.
+        let free = remaining - cached
 
         return MemoryBreakdown(
-            total:      totalMemory,
+            total:      total,
             app:        app,
-            wired:      wireBytes,
-            compressed: compBytes,
+            wired:      wired,
+            compressed: compressed,
             cached:     cached,
             free:       free
         )
